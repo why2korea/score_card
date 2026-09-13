@@ -1,0 +1,1558 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<!-- 휴대폰 화면에 딱 맞추기 + 확대 방지 + 노치 영역까지 사용 -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>why2korea_scorecard</title>
+
+<!-- PWA(홈화면 앱) 설정 -->
+<meta name="theme-color" content="#1b6b3c">
+<link rel="manifest" href="./manifest.json">
+
+<!-- 아이폰용 설정: 홈화면에서 전체화면으로 실행 -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="골프스코어">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+
+<style>
+/* ============================================================
+   [CSS 1] 색 설정 — 골프장 필드(그린) 톤 + 야외 햇빛 아래 가독성
+   ============================================================ */
+:root{
+  --bg:#eef5ec;         /* 배경: 밝은 잔디빛 */
+  --card:#ffffff;       /* 카드/입력 배경: 흰색(명도 대비 최우선) */
+  --line:#cfe0d2;       /* 테두리 */
+  --text:#132318;       /* 글자: 거의 검정에 가까운 짙은 그린 */
+  --sub:#5b6b60;        /* 흐린 글자 */
+  --green-dark:#1b6b3c; /* 헤더/상단바 */
+  --green:#2e7d4f;      /* 버튼/강조 */
+  --accent:#e8a400;     /* 총스코어 등 핵심 강조(골드) */
+  --accent-ink:#241800;
+  --danger:#c0392b;
+  --ok:#2e7d4f;
+}
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body{ margin:0; padding:0; height:100%; }
+body{
+  background:var(--bg); color:var(--text);
+  font-family:-apple-system, BlinkMacSystemFont, "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", sans-serif;
+  font-size:16px;
+  overscroll-behavior:none;
+}
+.hidden{ display:none !important; }
+
+.view{
+  position:fixed; inset:0;
+  display:flex; flex-direction:column;
+  padding-top:env(safe-area-inset-top);
+  padding-bottom:env(safe-area-inset-bottom);
+  background:var(--bg);
+}
+.view.scrollable{ overflow-y:auto; -webkit-overflow-scrolling:touch; }
+
+.topbar{
+  flex:0 0 auto; display:flex; align-items:center; gap:6px;
+  padding:10px 12px; min-height:54px;
+  background:var(--green-dark); color:#fff; border-bottom:1px solid var(--line);
+}
+.topbar .title{ font-size:16px; font-weight:800; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.iconbtn{
+  width:44px; height:44px; border-radius:10px; font-size:20px; line-height:1;
+  background:rgba(255,255,255,0.15); color:#fff; border:1px solid rgba(255,255,255,0.35);
+  display:flex; align-items:center; justify-content:center; cursor:pointer; flex:0 0 auto;
+}
+.iconbtn:active{ transform:scale(0.94); }
+.iconbtn.done{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+.iconbtn.wide{ width:auto; padding:0 10px; font-size:13px; gap:4px; white-space:nowrap; }
+
+.pad{ flex:1 1 auto; display:flex; flex-direction:column; gap:12px; padding:12px; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+
+/* ============================================================
+   [CSS 2] 메인 메뉴
+   ============================================================ */
+.brandbar{
+  padding:28px 20px 18px; background:linear-gradient(180deg,var(--green-dark),var(--green));
+  color:#fff; text-align:center; flex:0 0 auto;
+}
+.brandbar .logo{ font-size:40px; }
+.brandbar h1{ margin:6px 0 2px; font-size:20px; font-weight:800; }
+.brandbar p{ margin:0; font-size:13px; opacity:0.85; }
+
+.menu{ display:flex; flex-direction:column; gap:12px; }
+.menubtn{
+  display:flex; align-items:center; gap:14px;
+  min-height:64px; padding:0 18px; border-radius:16px;
+  background:var(--card); border:1px solid var(--line); color:var(--text);
+  font-size:18px; font-weight:700; cursor:pointer;
+  box-shadow:0 1px 3px rgba(0,0,0,0.06);
+}
+.menubtn:active{ transform:scale(0.98); }
+.menubtn .emoji{ font-size:26px; }
+.menubtn .sub{ font-size:12px; color:var(--sub); font-weight:500; display:block; margin-top:2px; }
+
+.exitbtn{
+  margin-top:4px; min-height:50px; border-radius:14px; background:transparent;
+  border:1px solid var(--danger); color:var(--danger); font-size:15px; font-weight:800;
+  display:flex; align-items:center; justify-content:center; gap:8px; cursor:pointer;
+}
+.exitbtn:active{ transform:scale(0.98); background:#fbeae8; }
+
+/* ============================================================
+   [CSS 3] 입력창 / 버튼
+   ============================================================ */
+.field{
+  width:100%; background:var(--card); color:var(--text);
+  border:1px solid var(--line); border-radius:10px;
+  padding:10px 12px; font-size:16px; font-family:inherit;
+}
+.field::placeholder{ color:var(--sub); }
+.field:focus{ outline:2px solid var(--green); outline-offset:-2px; }
+.formrow{ display:flex; flex-direction:column; gap:4px; }
+.formrow label{ font-size:12px; color:var(--sub); font-weight:700; padding-left:2px; }
+
+.btn{
+  min-height:46px; padding:0 14px; border-radius:10px; font-size:15px; font-weight:700;
+  background:var(--card); color:var(--text); border:1px solid var(--line); cursor:pointer;
+}
+.btn:active{ transform:scale(0.98); }
+.btn.primary{ background:var(--green); color:#fff; border-color:var(--green); }
+.btn.ghost{ background:transparent; }
+.btn.block{ width:100%; }
+.btn.small{ min-height:34px; padding:0 10px; font-size:13px; }
+
+.radiogroup{ display:flex; gap:14px; padding:6px 2px; }
+.radiobtn{ display:flex; align-items:center; gap:6px; font-size:15px; font-weight:700; color:var(--text); }
+.radiobtn input{ width:20px; height:20px; accent-color:var(--green); }
+
+.caddierate{ display:flex; align-items:center; gap:10px; padding:2px; }
+.poopbtn{
+  width:40px; height:40px; border-radius:10px; border:2px solid var(--line); background:#fff;
+  font-size:20px; display:flex; align-items:center; justify-content:center; cursor:pointer; flex:0 0 auto;
+}
+.poopbtn.on{ border-color:#8a5a1e; background:#f3e6d2; }
+.stars{ display:flex; gap:2px; }
+.starbtn{
+  width:36px; height:40px; border:none; background:transparent; font-size:22px; color:#d8dfd9;
+  cursor:pointer; padding:0; flex:0 0 auto;
+}
+.starbtn.on{ color:var(--accent); }
+
+.commentfield{ width:100%; }
+
+/* ============================================================
+   [CSS 4] 스코어카드 — 상단 요약
+   ============================================================ */
+.topcard{
+  background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px;
+  display:flex; flex-direction:column; gap:10px;
+}
+.rowgrid2{ display:grid; grid-template-columns:1fr 1fr; gap:4px 10px; }
+.rowgrid2 label, .rowgrid4 label{ font-size:12px; color:var(--sub); font-weight:700; padding-left:2px; }
+.rowgrid4{ display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:4px 8px; }
+.rowgrid4 label.span3{ grid-column:span 3; }
+.field.compact{ padding:9px 8px; font-size:14px; }
+.dtrow{ display:flex; gap:6px; }
+.dtrow input[type=date]{ flex:1.3; }
+.dtrow input[type=time]{ flex:1; }
+
+/* ============================================================
+   [CSS 5] 스코어 표 — 6홀씩 보이도록 크게, 첫 열(라벨) 가로 스크롤시 고정
+   ============================================================ */
+.tablewrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--line); border-radius:12px; background:var(--card); flex-shrink:0; }
+table.scoretable{ border-collapse:collapse; width:max-content; }
+table.scoretable th, table.scoretable td{
+  border-bottom:1px solid var(--line); border-right:1px solid var(--line);
+  text-align:center; padding:6px 3px; font-size:15px; white-space:nowrap;
+}
+table.scoretable th{ background:#e3f0e6; color:var(--green-dark); font-weight:800; font-size:13px; }
+table.scoretable td, table.scoretable th{ min-width:54px; height:52px; }
+.stickycol{
+  background:var(--card); min-width:60px !important; text-align:center;
+  position:sticky; left:0; z-index:2; border-right:2px solid var(--line);
+}
+tr.rowhead th.stickycol{ background:#e3f0e6; z-index:3; }
+.rowlabel{ font-weight:800; font-size:14px; }
+.rowlabel.putt{ color:var(--sub); font-weight:700; font-size:13px; }
+select.cellsel{
+  width:44px; height:44px; border:2px solid var(--green); border-radius:8px; font-size:15px;
+  font-weight:700; text-align:center; background:#f2f9f4; color:var(--text); padding:0;
+}
+select.cellsel.par{ color:var(--green-dark); font-weight:700; }
+.sumcell{ font-weight:800; background:#f5faf6; }
+.totcell{ font-weight:900; background:#eaf3ec; color:var(--green-dark); }
+.teebtn{
+  width:44px; height:44px; border:1px solid var(--line); border-radius:8px;
+  background:#fff; display:flex; align-items:center; justify-content:center; padding:0; cursor:pointer;
+}
+.teebtn:active{ transform:scale(0.94); }
+.tablehint{ font-size:12px; color:var(--green-dark); font-weight:700; padding:0 2px; display:flex; align-items:center; gap:6px; }
+
+/* ============================================================
+   [CSS 6] 요약 통계 박스
+   ============================================================ */
+.summarybox{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; font-size:14px; }
+.summarybox .stitle{ font-weight:800; color:var(--green-dark); margin-bottom:6px; font-size:13px; }
+.summarybox .sbody{ color:var(--text); line-height:1.6; }
+.summarybox .sbody.empty{ color:var(--sub); }
+
+/* ============================================================
+   [CSS 7] 히스토리 목록
+   ============================================================ */
+.filterrow{ display:flex; gap:8px; padding:0 0 2px; }
+.filterchip{
+  flex:1; min-height:38px; border-radius:10px; border:1px solid var(--line); background:var(--card);
+  color:var(--sub); font-size:13px; font-weight:700; cursor:pointer;
+}
+.filterchip.on{ background:var(--green); color:#fff; border-color:var(--green); }
+.histrow{
+  display:flex; align-items:center; gap:10px; background:var(--card); border:1px solid var(--line);
+  border-radius:12px; padding:12px 14px; cursor:pointer;
+}
+.histrow .d1{ flex:1; min-width:0; }
+.histrow .date{ font-size:12px; color:var(--sub); }
+.histrow .loctag{ font-size:11px; font-weight:700; color:var(--green-dark); background:#e3f0e6; border-radius:6px; padding:1px 6px; margin-left:6px; }
+.histrow .course{ font-size:15px; font-weight:700; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.histrow .score{ font-size:20px; font-weight:900; color:var(--green-dark); text-align:right; cursor:pointer; }
+.histrow .score .d{ font-size:12px; font-weight:700; color:var(--sub); display:block; text-align:right; }
+.delbtn{
+  width:40px; height:40px; border-radius:10px; flex:0 0 auto;
+  background:transparent; border:1px solid var(--line); color:var(--danger); font-size:17px; cursor:pointer;
+}
+.delbtn:active{ transform:scale(0.94); background:#fbeae8; }
+.emptynote{ text-align:center; color:var(--sub); padding:40px 20px; font-size:14px; line-height:1.6; }
+
+/* ============================================================
+   [CSS 8] 통계 화면
+   ============================================================ */
+.statgrid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.statcard{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; }
+.statcard.clickable{ cursor:pointer; }
+.statcard.clickable:active{ transform:scale(0.98); }
+.statcard .k{ font-size:12px; color:var(--sub); font-weight:700; }
+.statcard .v{ font-size:20px; font-weight:900; color:var(--green-dark); margin-top:4px; }
+.statcard .v small{ font-size:12px; color:var(--sub); font-weight:600; display:block; margin-top:2px; }
+.statcard.wide{ grid-column:1 / -1; }
+
+/* ============================================================
+   [CSS 9] 지도
+   ============================================================ */
+#mapEl{ flex:1 1 auto; min-height:0; }
+.mapstatus{ padding:8px 12px; font-size:12px; color:var(--sub); background:var(--card); border-bottom:1px solid var(--line); flex:0 0 auto; }
+
+/* ============================================================
+   [CSS 10] 설정 화면
+   ============================================================ */
+.settinglist{ display:flex; flex-direction:column; gap:10px; }
+.settinginfo{ font-size:12px; color:var(--sub); line-height:1.6; padding:0 2px; }
+
+/* 토스트 */
+.toast{
+  position:fixed; left:50%; bottom:24px; transform:translateX(-50%);
+  background:rgba(19,35,24,0.92); color:#fff; padding:10px 16px; border-radius:10px;
+  font-size:13px; z-index:999; max-width:88vw; text-align:center;
+}
+
+/* 티샷 방향 선택 시트 */
+.teepicker-overlay{
+  position:fixed; inset:0; background:rgba(10,20,14,0.45); z-index:80;
+  display:flex; align-items:flex-end; justify-content:center;
+}
+.teepicker-sheet{
+  width:100%; max-width:480px; background:#fff; border-radius:18px 18px 0 0;
+  padding:16px 8px calc(16px + env(safe-area-inset-bottom));
+}
+.teepicker-title{ font-size:14px; font-weight:800; color:var(--green-dark); text-align:center; margin-bottom:12px; }
+.teepicker-grid{ display:flex; flex-wrap:nowrap; justify-content:center; gap:4px; margin-bottom:12px; padding:0 4px; }
+.teepicker-grid button{
+  width:44px; height:44px; border-radius:10px; border:2px solid var(--line); background:#f8faf8;
+  display:flex; align-items:center; justify-content:center; cursor:pointer; flex:0 0 auto; padding:0;
+}
+.teepicker-grid button:active{ transform:scale(0.94); }
+.teepicker-grid button.on{ border-color:var(--green); background:#e6f4ea; }
+
+/* 공용 모달(읽기전용 스코어카드 팝업 / 버디 이상 목록 / 3지선다 확인창) */
+.modal-overlay{
+  position:fixed; inset:0; background:rgba(10,20,14,0.55); z-index:90;
+  display:flex; align-items:center; justify-content:center; padding:16px;
+}
+.modal-box{
+  width:100%; max-width:520px; max-height:86vh; background:var(--bg);
+  border-radius:16px; display:flex; flex-direction:column; overflow:hidden;
+  box-shadow:0 10px 30px rgba(0,0,0,0.3);
+}
+.modal-head{
+  flex:0 0 auto; display:flex; align-items:center; gap:8px; padding:10px 12px;
+  background:var(--green-dark); color:#fff;
+}
+.modal-title{ flex:1; font-size:15px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.modal-body{ flex:1 1 auto; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:12px; }
+.ro-infogrid{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; font-size:14px; line-height:1.8; margin-bottom:12px; }
+.ro-infogrid .k{ color:var(--sub); font-weight:700; font-size:12px; }
+.ro-comment{ background:#fff8e6; border:1px solid #eddca0; border-radius:10px; padding:10px 12px; font-size:14px; margin-top:8px; }
+.buddyrow{
+  background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 12px;
+  margin-bottom:8px; cursor:pointer; font-size:14px; line-height:1.6;
+}
+.buddyrow:active{ transform:scale(0.98); }
+.buddyrow .bd1{ font-weight:800; color:var(--green-dark); }
+.buddyrow .bd2{ color:var(--sub); font-size:12px; }
+
+.confirm-box{
+  width:100%; max-width:360px; background:var(--card); border-radius:16px; padding:18px;
+  display:flex; flex-direction:column; gap:10px;
+}
+.confirm-msg{ font-size:15px; font-weight:700; text-align:center; margin-bottom:6px; line-height:1.5; }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     화면 1: 메인
+     ============================================================ -->
+<div id="view-main" class="view scrollable">
+  <div class="brandbar">
+    <div class="logo">⛳</div>
+    <h1>why2korea 골프 스코어카드</h1>
+    <p>라운딩 기록 · 통계 · 지도</p>
+  </div>
+  <div class="pad">
+    <div class="menu">
+      <button class="menubtn" id="btn-new">
+        <span class="emoji">🆕</span>
+        <span><span>신규 등록</span><span class="sub">새 라운딩 시작</span></span>
+      </button>
+      <button class="menubtn" id="btn-resume">
+        <span class="emoji">⏳</span>
+        <span><span>미완료 라운딩</span><span class="sub">입력 중인 스코어카드 이어하기</span></span>
+      </button>
+      <button class="menubtn" id="btn-history">
+        <span class="emoji">📜</span>
+        <span><span>히스토리</span><span class="sub">지난 라운딩 목록</span></span>
+      </button>
+      <button class="menubtn" id="btn-stats">
+        <span class="emoji">📊</span>
+        <span><span>통계</span><span class="sub">전체 라운딩 분석</span></span>
+      </button>
+      <button class="menubtn" id="btn-map">
+        <span class="emoji">🗺️</span>
+        <span><span>지도</span><span class="sub">라운딩한 골프장 위치</span></span>
+      </button>
+      <button class="menubtn" id="btn-settings">
+        <span class="emoji">⚙️</span>
+        <span><span>설정</span><span class="sub">엑셀 백업 / 복원</span></span>
+      </button>
+    </div>
+    <button class="exitbtn" id="btn-exit">⏻ 종료</button>
+  </div>
+</div>
+
+<!-- ============================================================
+     화면 2: 스코어카드
+     ============================================================ -->
+<div id="view-scorecard" class="view scrollable hidden">
+  <div class="topbar">
+    <div class="iconbtn" id="sc-back">←</div>
+    <div class="title">스코어카드</div>
+    <div class="iconbtn wide" id="sc-draft">임시저장</div>
+    <div class="iconbtn wide" id="sc-done">○ 완료</div>
+  </div>
+  <div class="pad">
+    <div class="topcard">
+      <div class="formrow">
+        <label>국내 / 해외</label>
+        <div class="radiogroup" id="loctype-group">
+          <label class="radiobtn"><input type="radio" name="loctype" value="domestic"> 국내</label>
+          <label class="radiobtn"><input type="radio" name="loctype" value="overseas"> 해외</label>
+        </div>
+      </div>
+      <div class="formrow hidden" id="row-country">
+        <label>국가명 <span style="color:var(--danger)">*</span></label>
+        <input type="text" class="field" id="f-country" placeholder="예: 태국, 베트남">
+      </div>
+      <div class="formrow">
+        <label>일자 / 시간</label>
+        <div class="dtrow">
+          <input type="date" class="field compact" id="f-date">
+          <input type="time" class="field compact" id="f-time">
+        </div>
+      </div>
+      <div class="formrow"><label>골프장 이름</label><input type="text" class="field" id="f-course" placeholder="골프장 이름"></div>
+      <div class="formrow"><label>골프장 주소 (지도용)</label><input type="text" class="field" id="f-addr" placeholder="예: 경기도 ○○시 ○○로 123"></div>
+      <div class="rowgrid4">
+        <label class="span3">동반자 (최대 3명)</label><label>캐디명</label>
+        <input type="text" class="field compact" id="f-p1" placeholder="동반자 1">
+        <input type="text" class="field compact" id="f-p2" placeholder="동반자 2">
+        <input type="text" class="field compact" id="f-p3" placeholder="동반자 3">
+        <input type="text" class="field compact" id="f-caddie" placeholder="캐디명">
+      </div>
+      <div class="formrow">
+        <label>라운딩 한줄평</label>
+        <input type="text" class="field commentfield" id="f-comment" maxlength="200" placeholder="오늘 라운딩 한줄평">
+      </div>
+      <div class="formrow">
+        <label>캐디 평가</label>
+        <div class="caddierate">
+          <button type="button" class="poopbtn" id="caddie-poop" aria-label="엉망(똥)">💩</button>
+          <div class="stars" id="caddie-stars"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tablehint">👇 Par → score(+/−) → putt → Tee(티샷 방향) 순서로 입력하세요 (좌우로 밀어서 18홀 이동, 라벨열 고정)</div>
+    <div class="tablewrap" id="tablewrap"></div>
+
+    <div class="summarybox">
+      <div class="stitle">스코어 요약 (나)</div>
+      <div class="sbody" id="summary-body">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     화면 3: 히스토리
+     ============================================================ -->
+<div id="view-history" class="view hidden">
+  <div class="topbar">
+    <div class="iconbtn" id="hist-back">←</div>
+    <div class="title">히스토리</div>
+    <div style="width:44px"></div>
+  </div>
+  <div class="pad">
+    <div class="filterrow" id="hist-filter">
+      <button type="button" class="filterchip on" data-filter="all">전체</button>
+      <button type="button" class="filterchip" data-filter="domestic">국내</button>
+      <button type="button" class="filterchip" data-filter="overseas">해외</button>
+    </div>
+    <div id="hist-list"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     화면 4: 통계
+     ============================================================ -->
+<div id="view-stats" class="view scrollable hidden">
+  <div class="topbar">
+    <div class="iconbtn" id="stats-back">←</div>
+    <div class="title">통계</div>
+    <div style="width:44px"></div>
+  </div>
+  <div class="pad" id="stats-body"></div>
+</div>
+
+<!-- ============================================================
+     화면 5: 지도
+     ============================================================ -->
+<div id="view-map" class="view hidden">
+  <div class="topbar">
+    <div class="iconbtn" id="map-back">←</div>
+    <div class="title">지도</div>
+    <div style="width:44px"></div>
+  </div>
+  <div class="mapstatus" id="map-status">지도를 준비하는 중...</div>
+  <div id="mapEl"></div>
+</div>
+
+<!-- ============================================================
+     화면 6: 설정
+     ============================================================ -->
+<div id="view-settings" class="view scrollable hidden">
+  <div class="topbar">
+    <div class="iconbtn" id="settings-back">←</div>
+    <div class="title">설정</div>
+    <div style="width:44px"></div>
+  </div>
+  <div class="pad">
+    <div class="settinglist">
+      <button class="btn block primary" id="btn-export">⬇ 엑셀로 내보내기</button>
+      <button class="btn block" id="btn-restore">⬆ 엑셀에서 복원</button>
+      <input type="file" id="restore-file" accept=".xlsx" class="hidden">
+      <div class="settinginfo">
+        내보내기는 전체 라운드 기록을 .xlsx 파일로 저장합니다(라운드정보/스코어 시트 구성).<br>
+        복원은 내보낸 파일을 선택하면 되고, 복원 전 현재 데이터는 자동 백업됩니다.<br>
+        엑셀 기능은 처음 사용할 때 인터넷 연결이 필요합니다.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast hidden" id="toast"></div>
+
+<div class="teepicker-overlay hidden" id="teepicker">
+  <div class="teepicker-sheet">
+    <div class="teepicker-title" id="teepicker-title">티샷 방향</div>
+    <div class="teepicker-grid" id="teepicker-grid"></div>
+    <button type="button" class="btn block" id="teepicker-clear">선택 해제</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+'use strict';
+
+/* ============================================================================
+   [1] 공용 도구
+   ============================================================================ */
+const KEY = {
+  rounds:     'why2korea_scorecard.rounds',
+  geocache:   'why2korea_scorecard.geocache',
+  autobackup: 'why2korea_scorecard.rounds.autobackup'
+};
+
+const APP_VERSION = '1.1.0';
+const SCHEMA_VERSION = 2;
+
+const ME_NAME = '이용석';
+const BUDDY_NAME = '유희진';
+const SCORE_OPTS = [-3,-2,-1,0,1,2,3,4,5];
+const PUTT_OPTS  = [0,1,2,3,4,5];
+const PAR_OPTS   = [3,4,5,6];
+const CAT_LABEL  = {'-3':'알바트로스','-2':'이글','-1':'버디','0':'파','1':'보기','2':'더블보기','3':'트리플보기','4':'쿼드러플보기','5':'퀸터플보기'};
+
+// 티샷 방향: 코드, 화살표 각도(0=중앙,-45=왼쪽,45=오른쪽), 색, 굵은 흰색(OB) 여부
+const TEE_OPTS = [
+  { code: 'LOB', angle: -45, fill: '#ffffff', stroke: '#14231a', sw: 3,   label: '왼쪽 OB' },
+  { code: 'LP',  angle: -45, fill: '#c0392b', stroke: 'none',    sw: 0,   label: '왼쪽 벌타구역' },
+  { code: 'L',   angle: -45, fill: '#1b2a20', stroke: 'none',    sw: 0,   label: '왼쪽' },
+  { code: 'C',   angle: 0,   fill: '#1b2a20', stroke: 'none',    sw: 0,   label: '중앙' },
+  { code: 'R',   angle: 45,  fill: '#1b2a20', stroke: 'none',    sw: 0,   label: '오른쪽' },
+  { code: 'RP',  angle: 45,  fill: '#c0392b', stroke: 'none',    sw: 0,   label: '오른쪽 벌타구역' },
+  { code: 'ROB', angle: 45,  fill: '#ffffff', stroke: '#14231a', sw: 3,   label: '오른쪽 OB' }
+];
+const TEE_MAP = {};
+TEE_OPTS.forEach((t) => { TEE_MAP[t.code] = t; });
+
+function teeArrowSvg(code, size){
+  const t = TEE_MAP[code];
+  if (!t) return `<svg viewBox="0 0 24 24" width="${size}" height="${size}"><circle cx="12" cy="12" r="4" fill="#c8d6cc"/></svg>`;
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}">
+    <g transform="rotate(${t.angle} 12 12)">
+      <path d="M12 3 L18 16 L12 12.5 L6 16 Z" fill="${t.fill}" stroke="${t.stroke}" stroke-width="${t.sw}" stroke-linejoin="round"/>
+    </g>
+  </svg>`;
+}
+
+const $  = (sel, root) => (root || document).querySelector(sel);
+const $$ = (sel, root) => Array.prototype.slice.call((root || document).querySelectorAll(sel));
+
+function load(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw === null) return fallback;
+    return JSON.parse(raw);
+  } catch (e) { return fallback; }
+}
+function save(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); return true; }
+  catch (e) { toast('저장 공간이 부족합니다. 오래된 기록을 정리해주세요'); return false; }
+}
+function esc(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+let toastTimer = null;
+function toast(msg){
+  const el = $('#toast');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.add('hidden'), 2200);
+}
+function uid(){ return 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function todayStr(){
+  const d = new Date();
+  const p = (n) => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+}
+function nowTimeStr(){
+  const d = new Date();
+  const p = (n) => String(n).padStart(2,'0');
+  return `${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+// [Even 표기 통일] 오버/언더파는 항상 이 함수 하나로만 표시(+3 / 0 / -2). "E" 표기는 쓰지 않음.
+function fmtScoreDiff(diff){
+  if (diff == null) return '';
+  if (diff === 0) return '0';
+  return diff > 0 ? ('+' + diff) : String(diff);
+}
+function validTime(t){ return typeof t === 'string' && /^\d{2}:\d{2}$/.test(t); }
+function fmtDateTime(r){ return r.date + (validTime(r.time) ? ' ' + r.time : ''); }
+// 플레이어 정렬 규칙: 이용석(나)이 항상 먼저, 동반자 중 유희진이 있으면 항상 그 다음(나머지는 입력 순서 유지)
+function sortedCompanions(r){
+  const names = (r.companions || []).map((c) => (c || '').trim()).filter(Boolean);
+  const buddy = names.filter((n) => n === BUDDY_NAME);
+  const others = names.filter((n) => n !== BUDDY_NAME);
+  return buddy.concat(others);
+}
+
+/* ============================================================================
+   [2] 데이터
+   ============================================================================ */
+let ROUNDS = load(KEY.rounds, []);
+let GEOCACHE = load(KEY.geocache, {});
+let currentRoundId = null;
+let map = null;
+let activeModalCloser = null;
+
+function saveRounds(){ save(KEY.rounds, ROUNDS); }
+function saveGeocache(){ save(KEY.geocache, GEOCACHE); }
+
+function getRound(id){ return ROUNDS.find((r) => r.id === id); }
+
+function newRound(){
+  return {
+    id: uid(),
+    schemaVersion: SCHEMA_VERSION,
+    appVersion: APP_VERSION,
+    date: todayStr(),
+    time: nowTimeStr(),
+    locationType: 'domestic',   // 'domestic' | 'overseas'
+    country: '',
+    courseName: '',
+    courseAddress: '',
+    caddie: '',
+    caddiePoop: false,
+    caddieStars: 0,
+    comment: '',
+    companions: ['', '', ''],
+    frontName: '',
+    backName: '',
+    pars: new Array(18).fill(null),
+    myScores: new Array(18).fill(0),   // 기본값 0(파)
+    myPutts: new Array(18).fill(0),    // 기본값 0
+    myTee: new Array(18).fill(null),   // 티샷 방향 (미선택 기본)
+    completed: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+}
+
+// 예전 기록(스키마 v1 이하)도 항상 지금 구조로 맞춰줍니다 — 없는 필드는 기본값으로 채움
+function normalizeRound(r){
+  if (!Array.isArray(r.myScores)) r.myScores = (r.players && r.players[0] && r.players[0].scores) || new Array(18).fill(0);
+  if (!Array.isArray(r.myPutts)) r.myPutts = (r.players && r.players[0] && r.players[0].putts) || new Array(18).fill(0);
+  if (!Array.isArray(r.myTee)) r.myTee = new Array(18).fill(null);
+  if (!Array.isArray(r.pars)) r.pars = new Array(18).fill(null);
+  if (!Array.isArray(r.companions)) {
+    const fromPlayers = Array.isArray(r.players) ? r.players.slice(1, 4).map((p) => p.name || '') : [];
+    while (fromPlayers.length < 3) fromPlayers.push('');
+    r.companions = fromPlayers;
+  }
+  if (typeof r.time !== 'string') r.time = null;                       // 시간 없던 기록: 유효하지 않음(목록에 표시 안 됨)
+  if (r.locationType !== 'domestic' && r.locationType !== 'overseas') r.locationType = 'domestic';
+  if (typeof r.country !== 'string') r.country = '';
+  if (typeof r.caddiePoop !== 'boolean') r.caddiePoop = false;
+  if (typeof r.caddieStars !== 'number') r.caddieStars = 0;
+  if (typeof r.comment !== 'string') r.comment = '';
+  if (typeof r.schemaVersion !== 'number') r.schemaVersion = SCHEMA_VERSION;
+  if (typeof r.appVersion !== 'string') r.appVersion = APP_VERSION;
+  delete r.players;
+  return r;
+}
+ROUNDS.forEach(normalizeRound);
+
+function touch(round){ round.updatedAt = new Date().toISOString(); saveRounds(); }
+
+// 신규 등록만 열었다가 아무 것도 입력하지 않고 나가면 저장하지 않기 위한 판단 기준
+function isMeaningful(r){
+  if ((r.courseName || '').trim()) return true;
+  if ((r.companions || []).some((c) => (c || '').trim())) return true;
+  if ((r.pars || []).some((p) => p != null)) return true;
+  if ((r.myTee || []).some((t) => t != null)) return true;
+  if ((r.comment || '').trim()) return true;
+  if ((r.caddie || '').trim()) return true;
+  if (r.caddiePoop || r.caddieStars) return true;
+  return false;
+}
+
+/* ============================================================================
+   [3] 화면 전환 + 뒤로가기 스택(휴대폰 뒤로가기 버튼은 "이전 화면"으로만 이동)
+   ============================================================================ */
+function showView(name){
+  $$('.view').forEach((v) => v.classList.add('hidden'));
+  $('#view-' + name).classList.remove('hidden');
+}
+
+let viewStack = ['main'];
+
+function goTo(view, setupFn){
+  viewStack.push(view);
+  history.pushState({ nav: true }, '', location.href);
+  setupFn();
+}
+function popViewStack(){
+  if (viewStack.length > 1) viewStack.pop();
+  showView(viewStack[viewStack.length - 1] || 'main');
+}
+function goBackInternal(){
+  if (activeModalCloser) { activeModalCloser(); return; }
+  if (viewStack.length <= 1) { handleExitAttempt(); return; }
+  const current = viewStack[viewStack.length - 1];
+  if (current === 'scorecard') {
+    tryLeaveScorecard(popViewStack);
+  } else {
+    popViewStack();
+  }
+}
+window.addEventListener('popstate', () => {
+  // 우리 쪽 뒤로가기 스택을 직접 관리하므로, 브라우저가 화면을 실제로 벗어나지 않도록 상태를 다시 채워둡니다
+  history.pushState({ nav: true }, '', location.href);
+  goBackInternal();
+});
+
+let lastExitPromptAt = 0;
+function handleExitAttempt(){
+  const now = Date.now();
+  if (now - lastExitPromptAt < 2000) { attemptClose(); return; }
+  lastExitPromptAt = now;
+  toast('한 번 더 뒤로가기를 누르면 종료됩니다');
+}
+function attemptClose(){
+  window.close();
+  setTimeout(() => toast('자동으로 닫히지 않으면 최근 앱 목록에서 직접 닫아주세요'), 400);
+}
+
+// 스코어카드를 벗어날 때: 완료된 라운딩은 그냥 나가고, 미완료면 입력 내용에 따라 처리
+function tryLeaveScorecard(onLeave){
+  const r = getRound(currentRoundId);
+  if (!r || r.completed) { onLeave(); return; }
+  if (isMeaningful(r)) {
+    openConfirm3('저장하지 않은 라운딩이 있습니다', '임시저장', '저장 안 함', '취소', {
+      onA: () => { touch(r); onLeave(); },
+      onB: () => { ROUNDS = ROUNDS.filter((x) => x.id !== r.id); saveRounds(); onLeave(); },
+      onC: () => {}
+    });
+  } else {
+    ROUNDS = ROUNDS.filter((x) => x.id !== r.id); saveRounds();
+    onLeave();
+  }
+}
+
+/* ============================================================================
+   [4] 메인 화면
+   ============================================================================ */
+$('#btn-new').addEventListener('click', () => {
+  goTo('scorecard', () => {
+    const r = newRound();
+    ROUNDS.push(r);
+    saveRounds();
+    openScorecard(r.id);
+  });
+});
+$('#btn-resume').addEventListener('click', () => {
+  const r = latestIncomplete();
+  if (!r) { toast('미완료 라운딩이 없습니다'); return; }
+  goTo('scorecard', () => openScorecard(r.id));
+});
+$('#btn-history').addEventListener('click', () => goTo('history', openHistory));
+$('#btn-stats').addEventListener('click', () => goTo('stats', openStats));
+$('#btn-map').addEventListener('click', () => goTo('map', openMap));
+$('#btn-settings').addEventListener('click', () => goTo('settings', openSettings));
+$('#btn-exit').addEventListener('click', attemptClose);
+
+function latestIncomplete(){
+  const list = ROUNDS.filter((r) => !r.completed);
+  if (!list.length) return null;
+  list.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+  return list[0];
+}
+
+/* ============================================================================
+   [5] 스코어카드 화면
+   ============================================================================ */
+function openScorecard(id){
+  currentRoundId = id;
+  showView('scorecard');
+  renderScorecard();
+}
+
+$('#sc-back').addEventListener('click', goBackInternal);
+$('#sc-draft').addEventListener('click', () => {
+  const r = getRound(currentRoundId);
+  if (!r) return;
+  touch(r);
+  toast('임시저장 되었습니다');
+  popViewStack();
+});
+$('#sc-done').addEventListener('click', () => {
+  const r = getRound(currentRoundId);
+  if (!r) return;
+  if (!r.completed && r.locationType === 'overseas' && !(r.country || '').trim()) {
+    toast('해외 라운딩은 국가명을 입력해야 완료할 수 있습니다');
+    return;
+  }
+  r.completed = !r.completed;
+  touch(r);
+  toast(r.completed ? '라운딩을 완료 처리했습니다' : '완료를 취소했습니다 (미완료로 전환)');
+  renderScorecard();
+});
+
+function bindTopFields(r){
+  $('#f-date').value = r.date || '';
+  $('#f-time').value = validTime(r.time) ? r.time : '';
+  $('#f-course').value = r.courseName || '';
+  $('#f-addr').value = r.courseAddress || '';
+  $('#f-caddie').value = r.caddie || '';
+  $('#f-comment').value = r.comment || '';
+  $('#f-country').value = r.country || '';
+
+  const wire = (elId, field) => {
+    const el = $(elId);
+    el.oninput = () => { r[field] = el.value; touch(r); };
+  };
+  wire('#f-date', 'date');
+  wire('#f-time', 'time');
+  wire('#f-course', 'courseName');
+  wire('#f-addr', 'courseAddress');
+  wire('#f-caddie', 'caddie');
+  wire('#f-comment', 'comment');
+  wire('#f-country', 'country');
+
+  $$('input[name=loctype]').forEach((el) => {
+    el.checked = (el.value === (r.locationType || 'domestic'));
+    el.onchange = () => {
+      r.locationType = el.value;
+      if (el.value === 'domestic') { r.country = ''; $('#f-country').value = ''; }
+      touch(r);
+      $('#row-country').classList.toggle('hidden', el.value !== 'overseas');
+    };
+  });
+  $('#row-country').classList.toggle('hidden', (r.locationType || 'domestic') !== 'overseas');
+
+  // 동반자 최대 3명 (이름만, 스코어는 나만 기록)
+  [0, 1, 2].forEach((i) => {
+    const el = $('#f-p' + (i + 1));
+    el.value = r.companions[i] || '';
+    el.oninput = () => { r.companions[i] = el.value; touch(r); };
+  });
+
+  // 캐디 평가: 똥 1개 / 별 5개, 서로 배타적
+  const poopBtn = $('#caddie-poop');
+  poopBtn.classList.toggle('on', !!r.caddiePoop);
+  poopBtn.onclick = () => {
+    r.caddiePoop = !r.caddiePoop;
+    if (r.caddiePoop) r.caddieStars = 0;
+    touch(r);
+    renderScorecard();
+  };
+  let starsHtml = '';
+  for (let i = 1; i <= 5; i++) {
+    const on = (!r.caddiePoop && r.caddieStars >= i) ? ' on' : '';
+    starsHtml += `<button type="button" class="starbtn${on}" data-star="${i}" aria-label="별 ${i}점">★</button>`;
+  }
+  $('#caddie-stars').innerHTML = starsHtml;
+  $$('.starbtn', $('#caddie-stars')).forEach((btn) => {
+    btn.onclick = () => {
+      const n = +btn.dataset.star;
+      r.caddieStars = (r.caddieStars === n) ? 0 : n; // 같은 별을 다시 누르면 해제
+      r.caddiePoop = false;
+      touch(r);
+      renderScorecard();
+    };
+  });
+}
+
+function strokesSum(r, scores, range){
+  let sum = 0, cnt = 0;
+  range.forEach((h) => {
+    const par = r.pars[h], v = scores[h];
+    if (par != null && v != null) { sum += par + v; cnt++; }
+  });
+  return { sum, cnt };
+}
+function parSum(r, range){
+  let sum = 0, cnt = 0;
+  range.forEach((h) => { if (r.pars[h] != null) { sum += r.pars[h]; cnt++; } });
+  return { sum, cnt };
+}
+function puttSum(putts, range){
+  let sum = 0, cnt = 0;
+  range.forEach((h) => { if (putts[h] != null) { sum += putts[h]; cnt++; } });
+  return { sum, cnt };
+}
+const OUT_RANGE = [0,1,2,3,4,5,6,7,8];
+const IN_RANGE  = [9,10,11,12,13,14,15,16,17];
+const ALL_RANGE = OUT_RANGE.concat(IN_RANGE);
+
+function selectHtml(cls, extraCls, value, options, labelFn, dataAttrs){
+  let attrs = '';
+  Object.keys(dataAttrs).forEach((k) => { attrs += ` data-${k}="${dataAttrs[k]}"`; });
+  let html = `<select class="${cls} ${extraCls || ''}"${attrs}><option value="">–</option>`;
+  options.forEach((o) => {
+    const sel = (value === o) ? ' selected' : '';
+    html += `<option value="${o}"${sel}>${labelFn ? labelFn(o) : o}</option>`;
+  });
+  html += '</select>';
+  return html;
+}
+
+function renderTable(r){
+  let html = '<table class="scoretable"><tbody>';
+
+  // 헤더 (라벨 열은 sticky로 고정되어 가로 스크롤해도 항상 보입니다)
+  html += '<tr class="rowhead"><th class="stickycol">홀</th>';
+  ALL_RANGE.forEach((h) => {
+    html += h === 9 ? '<th>합</th><th>' + (h - 8) + '</th>' : `<th>${h < 9 ? h + 1 : h - 8}</th>`;
+  });
+  html += '<th>합</th><th>총계</th></tr>';
+
+  // Par 행
+  const parOut = parSum(r, OUT_RANGE), parIn = parSum(r, IN_RANGE);
+  html += '<tr class="rowpar"><td class="stickycol rowlabel">Par</td>';
+  OUT_RANGE.forEach((h) => { html += `<td>${selectHtml('cellsel', 'par', r.pars[h], PAR_OPTS, null, { hole: h, type: 'par' })}</td>`; });
+  html += `<td class="sumcell">${parOut.sum || ''}</td>`;
+  IN_RANGE.forEach((h) => { html += `<td>${selectHtml('cellsel', 'par', r.pars[h], PAR_OPTS, null, { hole: h, type: 'par' })}</td>`; });
+  html += `<td class="sumcell">${parIn.sum || ''}</td>`;
+  html += `<td class="totcell">${(parOut.sum + parIn.sum) || ''}</td></tr>`;
+
+  // 나의 타수(score) 행
+  const so = strokesSum(r, r.myScores, OUT_RANGE), si = strokesSum(r, r.myScores, IN_RANGE);
+  html += '<tr class="rowscore"><td class="stickycol rowlabel">score</td>';
+  OUT_RANGE.forEach((h) => { html += `<td>${selectHtml('cellsel', 'score', r.myScores[h], SCORE_OPTS, fmtScoreDiff, { hole: h, type: 'score' })}</td>`; });
+  html += `<td class="sumcell">${so.cnt ? so.sum : ''}</td>`;
+  IN_RANGE.forEach((h) => { html += `<td>${selectHtml('cellsel', 'score', r.myScores[h], SCORE_OPTS, fmtScoreDiff, { hole: h, type: 'score' })}</td>`; });
+  html += `<td class="sumcell">${si.cnt ? si.sum : ''}</td>`;
+  html += `<td class="totcell">${(so.cnt + si.cnt) ? (so.sum + si.sum) : ''}</td></tr>`;
+
+  // 나의 퍼팅(putt) 행
+  const po = puttSum(r.myPutts, OUT_RANGE), pi = puttSum(r.myPutts, IN_RANGE);
+  html += '<tr class="rowputt"><td class="stickycol rowlabel putt">putt</td>';
+  OUT_RANGE.forEach((h) => { html += `<td>${selectHtml('cellsel', '', r.myPutts[h], PUTT_OPTS, null, { hole: h, type: 'putt' })}</td>`; });
+  html += `<td class="sumcell">${po.cnt ? po.sum : ''}</td>`;
+  IN_RANGE.forEach((h) => { html += `<td>${selectHtml('cellsel', '', r.myPutts[h], PUTT_OPTS, null, { hole: h, type: 'putt' })}</td>`; });
+  html += `<td class="sumcell">${pi.cnt ? pi.sum : ''}</td>`;
+  html += `<td class="totcell">${(po.cnt + pi.cnt) ? (po.sum + pi.sum) : ''}</td></tr>`;
+
+  // 티샷 방향(Tee) 행 — 이미지/화살표로만 선택 (글자 아님)
+  html += '<tr class="rowtee"><td class="stickycol rowlabel putt">Tee</td>';
+  OUT_RANGE.forEach((h) => { html += `<td>${teeBtnHtml(r.myTee[h], h)}</td>`; });
+  html += '<td class="sumcell"></td>';
+  IN_RANGE.forEach((h) => { html += `<td>${teeBtnHtml(r.myTee[h], h)}</td>`; });
+  html += '<td class="sumcell"></td><td class="totcell"></td></tr>';
+
+  html += '</tbody></table>';
+  return html;
+}
+
+function teeBtnHtml(code, hole){
+  return `<button type="button" class="teebtn" data-hole="${hole}" aria-label="${hole+1}번 홀 티샷 방향">${teeArrowSvg(code, 22)}</button>`;
+}
+
+// 읽기전용 표(히스토리 팝업용) — 입력요소 없이 값만 표시
+function renderTableReadonly(r){
+  let html = '<table class="scoretable"><tbody>';
+  html += '<tr class="rowhead"><th class="stickycol">홀</th>';
+  ALL_RANGE.forEach((h) => {
+    html += h === 9 ? '<th>합</th><th>' + (h - 8) + '</th>' : `<th>${h < 9 ? h + 1 : h - 8}</th>`;
+  });
+  html += '<th>합</th><th>총계</th></tr>';
+
+  const parOut = parSum(r, OUT_RANGE), parIn = parSum(r, IN_RANGE);
+  html += '<tr><td class="stickycol rowlabel">Par</td>';
+  ALL_RANGE.forEach((h) => { if (h === 9) html += `<td class="sumcell">${parOut.sum || ''}</td>`; html += `<td>${r.pars[h] != null ? r.pars[h] : '–'}</td>`; });
+  html += `<td class="sumcell">${parIn.sum || ''}</td><td class="totcell">${(parOut.sum + parIn.sum) || ''}</td></tr>`;
+
+  const so = strokesSum(r, r.myScores, OUT_RANGE), si = strokesSum(r, r.myScores, IN_RANGE);
+  html += '<tr><td class="stickycol rowlabel">score</td>';
+  ALL_RANGE.forEach((h) => { if (h === 9) html += `<td class="sumcell">${so.cnt ? so.sum : ''}</td>`; html += `<td>${r.myScores[h] != null ? fmtScoreDiff(r.myScores[h]) : '–'}</td>`; });
+  html += `<td class="sumcell">${si.cnt ? si.sum : ''}</td><td class="totcell">${(so.cnt + si.cnt) ? (so.sum + si.sum) : ''}</td></tr>`;
+
+  const po = puttSum(r.myPutts, OUT_RANGE), pi = puttSum(r.myPutts, IN_RANGE);
+  html += '<tr><td class="stickycol rowlabel putt">putt</td>';
+  ALL_RANGE.forEach((h) => { if (h === 9) html += `<td class="sumcell">${po.cnt ? po.sum : ''}</td>`; html += `<td>${r.myPutts[h] != null ? r.myPutts[h] : '–'}</td>`; });
+  html += `<td class="sumcell">${pi.cnt ? pi.sum : ''}</td><td class="totcell">${(po.cnt + pi.cnt) ? (po.sum + pi.sum) : ''}</td></tr>`;
+
+  html += '<tr><td class="stickycol rowlabel putt">Tee</td>';
+  ALL_RANGE.forEach((h) => { if (h === 9) html += '<td class="sumcell"></td>'; html += `<td>${teeArrowSvg(r.myTee[h], 20)}</td>`; });
+  html += '<td class="sumcell"></td><td class="totcell"></td></tr>';
+
+  html += '</tbody></table>';
+  return html;
+}
+
+function renderSummary(r){
+  const counts = {};
+  // Par를 입력한 홀만 "실제로 플레이한 홀"로 보고 집계합니다 (스코어는 기본값 0이 항상 채워져 있으므로)
+  r.myScores.forEach((v, h) => { if (v != null && r.pars[h] != null) counts[v] = (counts[v] || 0) + 1; });
+  const parts = SCORE_OPTS.filter((k) => counts[k] > 0).map((k) => `${CAT_LABEL[k]} ${counts[k]}`);
+  const body = $('#summary-body');
+  if (!parts.length) { body.textContent = '아직 입력된 스코어가 없습니다'; body.classList.add('empty'); }
+  else { body.textContent = parts.join(', '); body.classList.remove('empty'); }
+}
+
+function renderScorecard(){
+  const r = getRound(currentRoundId);
+  if (!r) { popViewStack(); return; }
+
+  $('.title', $('#view-scorecard')).textContent = r.courseName ? r.courseName : '스코어카드';
+  $('#sc-done').classList.toggle('done', !!r.completed);
+  $('#sc-done').textContent = r.completed ? '✓ 완료' : '○ 완료';
+
+  bindTopFields(r);
+
+  $('#tablewrap').innerHTML = renderTable(r);
+  $$('select.cellsel', $('#tablewrap')).forEach((el) => {
+    el.onchange = () => {
+      const h = +el.dataset.hole;
+      const val = el.value === '' ? null : +el.value;
+      if (el.dataset.type === 'par') r.pars[h] = val;
+      else if (el.dataset.type === 'score') r.myScores[h] = val;
+      else if (el.dataset.type === 'putt') r.myPutts[h] = val;
+      touch(r);
+      renderScorecard();
+    };
+  });
+  $$('.teebtn', $('#tablewrap')).forEach((el) => {
+    el.onclick = () => openTeePicker(+el.dataset.hole);
+  });
+
+  renderSummary(r);
+}
+
+/* ============================================================================
+   [5-2] 티샷 방향 선택 시트 (반드시 화살표/이미지로만 선택 — 글자 라벨 없음)
+   ============================================================================ */
+let teePickerHole = null;
+
+function openTeePicker(hole){
+  teePickerHole = hole;
+  const r = getRound(currentRoundId);
+  const current = r.myTee[hole];
+  $('#teepicker-title').textContent = (hole + 1) + '번 홀 티샷 방향';
+  $('#teepicker-grid').innerHTML = TEE_OPTS.map((t) => {
+    const on = current === t.code ? ' on' : '';
+    return `<button type="button" class="${on.trim()}" data-code="${t.code}" aria-label="${t.label}">${teeArrowSvg(t.code, 24)}</button>`;
+  }).join('');
+  $$('#teepicker-grid button').forEach((btn) => {
+    btn.onclick = () => selectTee(btn.dataset.code);
+  });
+  $('#teepicker').classList.remove('hidden');
+  activeModalCloser = closeTeePicker;
+}
+function closeTeePicker(){
+  $('#teepicker').classList.add('hidden');
+  teePickerHole = null;
+  activeModalCloser = null;
+}
+function selectTee(code){
+  const r = getRound(currentRoundId);
+  if (r && teePickerHole != null) {
+    r.myTee[teePickerHole] = code;
+    touch(r);
+    renderScorecard();
+  }
+  closeTeePicker();
+}
+$('#teepicker-clear').addEventListener('click', () => selectTee(null));
+$('#teepicker').addEventListener('click', (e) => { if (e.target.id === 'teepicker') closeTeePicker(); });
+
+/* ============================================================================
+   [6] 히스토리 화면
+   ============================================================================ */
+let historyFilter = 'all';
+
+function openHistory(){ showView('history'); renderHistory(); }
+$('#hist-back').addEventListener('click', goBackInternal);
+$$('#hist-filter .filterchip').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    historyFilter = btn.dataset.filter;
+    $$('#hist-filter .filterchip').forEach((b) => b.classList.toggle('on', b === btn));
+    renderHistory();
+  });
+});
+
+function locTag(r){
+  return r.locationType === 'overseas' ? ('해외 · ' + (r.country || '(국가 미입력)')) : '국내';
+}
+
+function renderHistory(){
+  let list = ROUNDS.filter((r) => r.completed);
+  if (historyFilter === 'domestic') list = list.filter((r) => r.locationType !== 'overseas');
+  if (historyFilter === 'overseas') list = list.filter((r) => r.locationType === 'overseas');
+  list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  const wrap = $('#hist-list');
+  if (!list.length) {
+    wrap.innerHTML = '<div class="emptynote">해당 조건의 완료된 라운딩이 없습니다.</div>';
+    return;
+  }
+  let lastTap = { id: null, t: 0 };
+  wrap.innerHTML = list.map((r) => {
+    const tot = strokesSum(r, r.myScores, ALL_RANGE);
+    const par = parSum(r, ALL_RANGE);
+    const scoreTxt = tot.cnt ? tot.sum : '—';
+    const diffTxt = tot.cnt ? fmtScoreDiff(tot.sum - par.sum) : '';
+    return `<div class="histrow" data-id="${r.id}">
+      <div class="d1"><div class="date">${esc(fmtDateTime(r))}<span class="loctag">${esc(locTag(r))}</span></div><div class="course">${esc(r.courseName || '(이름없음)')}</div></div>
+      <div class="score" data-open="${r.id}">${scoreTxt}<span class="d">${diffTxt}</span></div>
+      <button type="button" class="delbtn" data-del="${r.id}" aria-label="삭제">🗑</button>
+    </div>`;
+  }).join('');
+
+  $$('.histrow', wrap).forEach((row) => {
+    row.addEventListener('click', () => {
+      const id = row.dataset.id;
+      const now = Date.now();
+      if (lastTap.id === id && (now - lastTap.t) < 400) {
+        goTo('scorecard', () => openScorecard(id));
+        lastTap = { id: null, t: 0 };
+      } else {
+        lastTap = { id, t: now };
+      }
+    });
+    row.addEventListener('dblclick', () => goTo('scorecard', () => openScorecard(row.dataset.id)));
+  });
+
+  $$('.delbtn', wrap).forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.del;
+      const r = getRound(id);
+      if (!r) return;
+      const ok = confirm(`"${r.courseName || '(이름없음)'}" (${r.date}) 라운딩 기록을 삭제할까요?\n삭제하면 되돌릴 수 없습니다.`);
+      if (!ok) return;
+      ROUNDS = ROUNDS.filter((x) => x.id !== id);
+      saveRounds();
+      toast('삭제했습니다');
+      renderHistory();
+    });
+  });
+}
+
+/* ============================================================================
+   [7] 통계 화면
+   ============================================================================ */
+function openStats(){ showView('stats'); renderStats(); }
+$('#stats-back').addEventListener('click', goBackInternal);
+
+function collectHoleRecords(list){
+  const out = [];
+  list.forEach((r) => {
+    r.myScores.forEach((diff, h) => {
+      const par = r.pars[h];
+      if (diff == null || par == null) return;
+      out.push({ round: r, hole: h, par, diff, actual: par + diff });
+    });
+  });
+  return out;
+}
+
+function renderStats(){
+  const list = ROUNDS.filter((r) => r.completed);
+  const wrap = $('#stats-body');
+  const rows = list.map((r) => {
+    const tot = strokesSum(r, r.myScores, ALL_RANGE);
+    const putt = puttSum(r.myPutts, ALL_RANGE);
+    return { r, strokes: tot.cnt ? tot.sum : null, putts: putt.cnt ? putt.sum : null };
+  }).filter((x) => x.strokes != null);
+
+  if (!rows.length) {
+    wrap.innerHTML = '<div class="emptynote">완료된 라운딩이 없어 통계를 계산할 수 없습니다.</div>';
+    return;
+  }
+
+  let min = rows[0], max = rows[0];
+  rows.forEach((x) => { if (x.strokes < min.strokes) min = x; if (x.strokes > max.strokes) max = x; });
+  const avgStrokes = (rows.reduce((s, x) => s + x.strokes, 0) / rows.length).toFixed(1);
+  const puttRows = rows.filter((x) => x.putts != null);
+  const avgPutts = puttRows.length ? (puttRows.reduce((s, x) => s + x.putts, 0) / puttRows.length).toFixed(1) : '—';
+
+  const holeRecords = collectHoleRecords(list);
+  const albatross = holeRecords.filter((x) => x.diff <= -3).length;
+  const eagle = holeRecords.filter((x) => x.diff === -2).length;
+  const birdie = holeRecords.filter((x) => x.diff === -1).length;
+  const holeinone = holeRecords.filter((x) => x.actual === 1).length;
+  const parCnt = holeRecords.filter((x) => x.diff === 0).length;
+  const bogey = holeRecords.filter((x) => x.diff === 1).length;
+  const doubleUp = holeRecords.filter((x) => x.diff >= 2).length;
+
+  wrap.innerHTML = `
+    <div class="statgrid">
+      <div class="statcard wide clickable" id="stat-min">
+        <div class="k">최저타 (눌러서 스코어카드 보기)</div>
+        <div class="v">${min.strokes}<small>${esc(min.r.date)} · ${esc(min.r.courseName || '')}</small></div>
+      </div>
+      <div class="statcard wide clickable" id="stat-max">
+        <div class="k">최고타 (눌러서 스코어카드 보기)</div>
+        <div class="v">${max.strokes}<small>${esc(max.r.date)} · ${esc(max.r.courseName || '')}</small></div>
+      </div>
+      <div class="statcard"><div class="k">평균 타수</div><div class="v">${avgStrokes}</div></div>
+      <div class="statcard"><div class="k">평균 퍼팅 수</div><div class="v">${avgPutts}</div></div>
+      <div class="statcard"><div class="k">라운딩 횟수</div><div class="v">${list.length}</div></div>
+      <div class="statcard clickable" data-buddy="holeinone"><div class="k">홀인원 (눌러서 목록)</div><div class="v">${holeinone}</div></div>
+      <div class="statcard clickable" data-buddy="albatross"><div class="k">알바트로스 (눌러서 목록)</div><div class="v">${albatross}</div></div>
+      <div class="statcard clickable" data-buddy="eagle"><div class="k">이글 (눌러서 목록)</div><div class="v">${eagle}</div></div>
+      <div class="statcard clickable" data-buddy="birdie"><div class="k">버디 (눌러서 목록)</div><div class="v">${birdie}</div></div>
+      <div class="statcard"><div class="k">파</div><div class="v">${parCnt}</div></div>
+      <div class="statcard"><div class="k">보기</div><div class="v">${bogey}</div></div>
+      <div class="statcard"><div class="k">더블보기 이상</div><div class="v">${doubleUp}</div></div>
+    </div>`;
+
+  $('#stat-min').addEventListener('click', () => openReadonlyPopup(min.r.id));
+  $('#stat-max').addEventListener('click', () => openReadonlyPopup(max.r.id));
+  $$('[data-buddy]', wrap).forEach((el) => {
+    el.addEventListener('click', () => openBuddyList(el.dataset.buddy));
+  });
+}
+
+/* ============================================================================
+   [7-2] 읽기전용 스코어카드 팝업 / 버디 이상 목록 팝업 / 3지선다 확인창
+   ============================================================================ */
+function openModalSheet(title, bodyHtml){
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `<div class="modal-box">
+    <div class="modal-head"><div class="modal-title">${esc(title)}</div><button type="button" class="iconbtn" id="modal-close">×</button></div>
+    <div class="modal-body">${bodyHtml}</div>
+  </div>`;
+  document.body.appendChild(overlay);
+  const close = () => { if (overlay.parentNode) document.body.removeChild(overlay); activeModalCloser = null; };
+  $('#modal-close', overlay).onclick = close;
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  activeModalCloser = close;
+  return { overlay, close };
+}
+
+function openReadonlyPopup(id){
+  const r = getRound(id);
+  if (!r) return;
+  const companions = sortedCompanions(r);
+  const caddieEvalTxt = r.caddiePoop ? '💩 엉망' : (r.caddieStars ? '★'.repeat(r.caddieStars) + ' (' + r.caddieStars + '점)' : '평가 없음');
+  const bodyHtml = `
+    <div class="ro-infogrid">
+      <div><span class="k">일시</span> ${esc(fmtDateTime(r)) || '–'}</div>
+      <div><span class="k">구분</span> ${esc(locTag(r))}</div>
+      <div><span class="k">골프장</span> ${esc(r.courseName || '(이름없음)')}</div>
+      <div><span class="k">동반자</span> ${companions.length ? esc(companions.join(', ')) : '–'}</div>
+      <div><span class="k">캐디</span> ${esc(r.caddie || '–')} · ${esc(caddieEvalTxt)}</div>
+      ${r.comment ? `<div class="ro-comment">💬 ${esc(r.comment)}</div>` : ''}
+    </div>
+    <div class="tablewrap">${renderTableReadonly(r)}</div>
+  `;
+  openModalSheet(r.courseName || '스코어카드', bodyHtml);
+}
+
+const BUDDY_LABEL = { albatross: '알바트로스', eagle: '이글', birdie: '버디', holeinone: '홀인원' };
+function openBuddyList(cat){
+  const list = ROUNDS.filter((r) => r.completed);
+  let records = collectHoleRecords(list);
+  if (cat === 'albatross') records = records.filter((x) => x.diff <= -3);
+  else if (cat === 'eagle') records = records.filter((x) => x.diff === -2);
+  else if (cat === 'birdie') records = records.filter((x) => x.diff === -1);
+  else if (cat === 'holeinone') records = records.filter((x) => x.actual === 1);
+
+  records.sort((a, b) => (fmtDateTime(b.round) + b.hole).localeCompare(fmtDateTime(a.round) + a.hole));
+
+  const bodyHtml = records.length
+    ? records.map((rec, i) => {
+        const companions = sortedCompanions(rec.round);
+        return `<div class="buddyrow" data-idx="${i}">
+          <div class="bd1">${esc(fmtDateTime(rec.round))} · ${esc(rec.round.courseName || '(이름없음)')}</div>
+          <div class="bd2">동반자: ${companions.length ? esc(companions.join(', ')) : '–'}</div>
+          <div class="bd2">${rec.hole + 1}번 홀 · Par ${rec.par} · ${rec.actual}타 (${fmtScoreDiff(rec.diff)})</div>
+        </div>`;
+      }).join('')
+    : '<div class="emptynote">해당 기록이 없습니다.</div>';
+
+  const { overlay } = openModalSheet(BUDDY_LABEL[cat] + ' 기록', bodyHtml);
+  $$('.buddyrow', overlay).forEach((row) => {
+    row.addEventListener('click', () => {
+      const rec = records[+row.dataset.idx];
+      if (!rec) return;
+      openReadonlyPopup(rec.round.id);
+    });
+  });
+}
+
+function openConfirm3(msg, labelA, labelB, labelC, handlers){
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `<div class="confirm-box">
+    <div class="confirm-msg">${esc(msg)}</div>
+    <button type="button" class="btn block primary" id="confirm-a">${esc(labelA)}</button>
+    <button type="button" class="btn block" id="confirm-b">${esc(labelB)}</button>
+    <button type="button" class="btn block ghost" id="confirm-c">${esc(labelC)}</button>
+  </div>`;
+  document.body.appendChild(overlay);
+  const close = () => { if (overlay.parentNode) document.body.removeChild(overlay); activeModalCloser = null; };
+  $('#confirm-a', overlay).onclick = () => { close(); handlers.onA && handlers.onA(); };
+  $('#confirm-b', overlay).onclick = () => { close(); handlers.onB && handlers.onB(); };
+  $('#confirm-c', overlay).onclick = () => { close(); handlers.onC && handlers.onC(); };
+  activeModalCloser = () => { close(); handlers.onC && handlers.onC(); };
+}
+
+/* ============================================================================
+   [8] 지도 화면 (Leaflet + OpenStreetMap, 무료·키 불필요)
+   ============================================================================ */
+function openMap(){
+  showView('map');
+  $('#map-status').textContent = '지도를 준비하는 중...';
+  setTimeout(initMapAndMarkers, 30); // 화면 전환(레이아웃) 이후에 초기화해야 타일이 정상 표시됨
+}
+$('#map-back').addEventListener('click', goBackInternal);
+
+async function initMapAndMarkers(){
+  if (!map) {
+    map = L.map('mapEl');
+    // 처음 열면 대한민국(제주 포함)이 가장 크게 보이도록 맞추고, 축소하면 다른 나라도 보임
+    map.fitBounds([[33.0, 124.3], [38.7, 131.9]]);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
+      maxZoom: 18
+    }).addTo(map);
+  } else {
+    map.invalidateSize();
+  }
+
+  const list = ROUNDS.filter((r) => r.completed && r.courseAddress && r.courseAddress.trim());
+  if (!list.length) {
+    $('#map-status').textContent = '지도에 표시할 라운딩이 없습니다 (주소가 입력된 완료 라운딩 필요)';
+    return;
+  }
+
+  // 골프장(주소) 단위로 묶기
+  const groups = {};
+  list.forEach((r) => {
+    const key = r.courseAddress.trim();
+    if (!groups[key]) groups[key] = { address: key, courseName: r.courseName, visits: [] };
+    groups[key].visits.push(r);
+  });
+  const keys = Object.keys(groups);
+
+  let placed = 0, failed = 0;
+  for (let i = 0; i < keys.length; i++) {
+    const g = groups[keys[i]];
+    $('#map-status').textContent = `골프장 위치 확인 중... (${i+1}/${keys.length})`;
+    const geo = await geocodeCached(g.address);
+    if (geo && geo.lat != null) {
+      const popupHtml = g.visits
+        .sort((a,b) => (b.date||'').localeCompare(a.date||''))
+        .map((r) => {
+          const tot = strokesSum(r, r.myScores, ALL_RANGE);
+          return `${esc(r.date)} · ${tot.cnt ? tot.sum + '타' : '기록없음'}`;
+        }).join('<br>');
+      L.marker([geo.lat, geo.lng]).addTo(map)
+        .bindPopup(`<b>${esc(g.courseName || g.address)}</b><br>${popupHtml}`);
+      placed++;
+    } else {
+      failed++;
+    }
+    // Nominatim 사용 정책: 초당 1회 이하로 요청 (연속 골프장이 여러 곳일 때만 대기)
+    if (i < keys.length - 1) await new Promise((res) => setTimeout(res, 1100));
+  }
+
+  $('#map-status').textContent = failed
+    ? `골프장 ${placed}곳 표시 (주소 확인 실패 ${failed}곳 제외)`
+    : `골프장 ${placed}곳 표시됨`;
+}
+
+async function geocodeCached(address){
+  if (GEOCACHE[address] !== undefined) return GEOCACHE[address];
+  try {
+    const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(address);
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) throw new Error('geocode http ' + res.status);
+    const data = await res.json();
+    if (data && data[0]) {
+      const geo = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+      GEOCACHE[address] = geo;
+      saveGeocache();
+      return geo;
+    }
+    GEOCACHE[address] = { lat: null };
+    saveGeocache();
+    return GEOCACHE[address];
+  } catch (e) {
+    // 인터넷이 없거나 검색 실패 — 앱이 멈추지 않도록 실패만 기록하고 계속 진행
+    GEOCACHE[address] = { lat: null };
+    saveGeocache();
+    return GEOCACHE[address];
+  }
+}
+
+/* ============================================================================
+   [9] 설정 화면 — 엑셀 내보내기 / 복원
+   ============================================================================ */
+function openSettings(){ showView('settings'); }
+$('#settings-back').addEventListener('click', goBackInternal);
+
+function excelTimestamp(){
+  const d = new Date();
+  const p = (n) => String(n).padStart(2,'0');
+  return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
+}
+function encodeCaddieEval(r){
+  if (r.caddiePoop) return 'poop';
+  if (r.caddieStars) return 'star:' + r.caddieStars;
+  return '';
+}
+function decodeCaddieEval(s){
+  if (s === 'poop') return { poop: true, stars: 0 };
+  if (typeof s === 'string' && s.indexOf('star:') === 0) return { poop: false, stars: parseInt(s.slice(5), 10) || 0 };
+  return { poop: false, stars: 0 };
+}
+function parseScoreDiffCell(v){
+  if (v === '' || v == null) return null;
+  const n = parseInt(v, 10);
+  return isNaN(n) ? null : n;
+}
+
+const INFO_HEADER = ['id','일자','시간','국내해외','국가','골프장','동반자','캐디명','캐디평가','한줄평','완료여부','전반명','후반명','생성일시','수정일시','schemaVersion','appVersion'];
+const SCORE_HEADER = ['라운드ID','홀번호','Par','타수','스코어(+/-)','퍼팅','Tee'];
+
+$('#btn-export').addEventListener('click', () => {
+  if (typeof XLSX === 'undefined') { toast('엑셀 기능을 불러오지 못했습니다. 인터넷 연결 후 다시 시도해주세요'); return; }
+  if (!ROUNDS.length) { toast('내보낼 라운드 기록이 없습니다'); return; }
+
+  const infoRows = [INFO_HEADER].concat(ROUNDS.map((r) => [
+    r.id, r.date || '', r.time || '', r.locationType === 'overseas' ? '해외' : '국내',
+    r.locationType === 'overseas' ? (r.country || '') : '',
+    r.courseName || '', sortedCompanions(r).join(', '), r.caddie || '', encodeCaddieEval(r), r.comment || '',
+    r.completed ? 'Y' : 'N', r.frontName || '', r.backName || '', r.createdAt || '', r.updatedAt || '',
+    r.schemaVersion || SCHEMA_VERSION, r.appVersion || APP_VERSION
+  ]));
+
+  const scoreRows = [SCORE_HEADER];
+  ROUNDS.forEach((r) => {
+    for (let h = 0; h < 18; h++) {
+      if (r.pars[h] == null && r.myScores[h] == null && r.myPutts[h] == null && r.myTee[h] == null) continue;
+      const par = r.pars[h], diff = r.myScores[h];
+      const actual = (par != null && diff != null) ? par + diff : '';
+      scoreRows.push([r.id, h + 1, par == null ? '' : par, actual, diff == null ? '' : fmtScoreDiff(diff), r.myPutts[h] == null ? '' : r.myPutts[h], r.myTee[h] || '']);
+    }
+  });
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(infoRows), '라운드정보');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(scoreRows), '스코어');
+  const fname = `scorecard_backup_${excelTimestamp()}.xlsx`;
+  XLSX.writeFile(wb, fname);
+  toast('엑셀 파일을 내보냈습니다: ' + fname);
+});
+
+$('#btn-restore').addEventListener('click', () => {
+  if (typeof XLSX === 'undefined') { toast('엑셀 기능을 불러오지 못했습니다. 인터넷 연결 후 다시 시도해주세요'); return; }
+  $('#restore-file').click();
+});
+
+$('#restore-file').addEventListener('change', (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const wb = XLSX.read(reader.result, { type: 'array' });
+      const infoSheet = wb.Sheets['라운드정보'];
+      const scoreSheet = wb.Sheets['스코어'];
+      if (!infoSheet || !scoreSheet) throw new Error('sheet missing');
+
+      const infoRows = XLSX.utils.sheet_to_json(infoSheet, { header: 1 });
+      const scoreRowsRaw = XLSX.utils.sheet_to_json(scoreSheet, { header: 1 });
+      const infoHeader = infoRows[0] || [];
+      const required = ['id', '일자', '시간', '국내해외'];
+      if (required.some((c) => infoHeader.indexOf(c) === -1)) throw new Error('header mismatch');
+      const idx = (name) => infoHeader.indexOf(name);
+
+      const parsedRounds = infoRows.slice(1).filter((row) => row && row[idx('id')]).map((row) => {
+        const evalDecoded = decodeCaddieEval(row[idx('캐디평가')]);
+        const r = newRound();
+        r.id = String(row[idx('id')]);
+        r.date = row[idx('일자')] || todayStr();
+        r.time = row[idx('시간')] || null;
+        r.locationType = row[idx('국내해외')] === '해외' ? 'overseas' : 'domestic';
+        r.country = row[idx('국가')] || '';
+        r.courseName = row[idx('골프장')] || '';
+        r.caddie = row[idx('캐디명')] || '';
+        r.caddiePoop = evalDecoded.poop;
+        r.caddieStars = evalDecoded.stars;
+        r.comment = row[idx('한줄평')] || '';
+        r.completed = row[idx('완료여부')] === 'Y';
+        r.frontName = row[idx('전반명')] || '';
+        r.backName = row[idx('후반명')] || '';
+        r.createdAt = row[idx('생성일시')] || r.createdAt;
+        r.updatedAt = row[idx('수정일시')] || r.updatedAt;
+        r.schemaVersion = +row[idx('schemaVersion')] || SCHEMA_VERSION;
+        r.appVersion = row[idx('appVersion')] || APP_VERSION;
+        r.companions = ['', '', ''];
+        const compNames = String(row[idx('동반자')] || '').split(',').map((s) => s.trim()).filter(Boolean);
+        compNames.slice(0, 3).forEach((n, i) => { r.companions[i] = n; });
+        return r;
+      });
+
+      const scoreHeader = scoreRowsRaw[0] || [];
+      const sidx = (name) => scoreHeader.indexOf(name);
+      const byId = {};
+      parsedRounds.forEach((r) => { byId[r.id] = r; });
+      scoreRowsRaw.slice(1).forEach((row) => {
+        if (!row) return;
+        const r = byId[String(row[sidx('라운드ID')])];
+        if (!r) return;
+        const h = (parseInt(row[sidx('홀번호')], 10) || 0) - 1;
+        if (h < 0 || h > 17) return;
+        const par = row[sidx('Par')];
+        r.pars[h] = (par === '' || par == null) ? null : +par;
+        r.myScores[h] = parseScoreDiffCell(row[sidx('스코어(+/-)')]);
+        const putt = row[sidx('퍼팅')];
+        r.myPutts[h] = (putt === '' || putt == null) ? null : +putt;
+        r.myTee[h] = row[sidx('Tee')] || null;
+      });
+
+      parsedRounds.forEach(normalizeRound);
+      if (!parsedRounds.length) throw new Error('empty');
+      openRestoreModeConfirm(parsedRounds);
+    } catch (err) {
+      toast('올바른 백업 파일이 아닙니다');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+function openRestoreModeConfirm(parsedRounds){
+  openConfirm3(`백업 파일에서 ${parsedRounds.length}건을 찾았습니다. 복원 방식을 선택하세요`, '전체 덮어쓰기', '병합 (중복 ID 건너뜀)', '취소', {
+    onA: () => doRestore(parsedRounds, 'overwrite'),
+    onB: () => doRestore(parsedRounds, 'merge'),
+    onC: () => {}
+  });
+}
+function doRestore(parsedRounds, mode){
+  save(KEY.autobackup, { savedAt: new Date().toISOString(), data: ROUNDS });
+  if (mode === 'overwrite') {
+    ROUNDS = parsedRounds;
+  } else {
+    const existingIds = {};
+    ROUNDS.forEach((r) => { existingIds[r.id] = true; });
+    let added = 0;
+    parsedRounds.forEach((r) => { if (!existingIds[r.id]) { ROUNDS.push(r); added++; } });
+    saveRounds();
+    toast(`복원 완료: ${added}건 추가 (중복 ${parsedRounds.length - added}건 건너뜀)`);
+    return;
+  }
+  saveRounds();
+  toast(`복원 완료: ${parsedRounds.length}건으로 덮어썼습니다`);
+}
+
+/* ============================================================================
+   [10] 시작
+   ============================================================================ */
+function initApp(){
+  history.replaceState({ nav: true }, '', location.href);
+
+  const inc = latestIncomplete();
+  if (inc) { viewStack = ['main', 'scorecard']; openScorecard(inc.id); }
+  else { viewStack = ['main']; showView('main'); }
+
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    });
+  }
+}
+
+initApp();
+</script>
+</body>
+</html>
