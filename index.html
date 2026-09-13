@@ -895,7 +895,7 @@ function renderTable(r){
   // 헤더 (라벨 열은 sticky로 고정되어 가로 스크롤해도 항상 보입니다)
   html += '<tr class="rowhead"><th class="stickycol">홀</th>';
   ALL_RANGE.forEach((h) => {
-    html += h === 9 ? '<th>합</th><th>' + (h - 8) + '</th>' : `<th>${h < 9 ? h + 1 : h - 8}</th>`;
+    html += h === 9 ? '<th>합</th><th>' + (h + 1) + '</th>' : `<th>${h + 1}</th>`;
   });
   html += '<th>합</th><th>총계</th></tr>';
 
@@ -946,7 +946,7 @@ function renderTableReadonly(r){
   let html = '<table class="scoretable"><tbody>';
   html += '<tr class="rowhead"><th class="stickycol">홀</th>';
   ALL_RANGE.forEach((h) => {
-    html += h === 9 ? '<th>합</th><th>' + (h - 8) + '</th>' : `<th>${h < 9 ? h + 1 : h - 8}</th>`;
+    html += h === 9 ? '<th>합</th><th>' + (h + 1) + '</th>' : `<th>${h + 1}</th>`;
   });
   html += '<th>합</th><th>총계</th></tr>';
 
