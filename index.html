@@ -254,6 +254,10 @@ select.cellsel.par{ color:var(--green-dark); font-weight:700; }
 .companionrow .rank{ color:var(--sub); font-weight:700; width:20px; flex:0 0 auto; }
 .companionrow .name{ flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .companionrow .cnt{ font-weight:800; color:var(--green-dark); flex:0 0 auto; }
+.yearstat-table{ margin-top:6px; }
+.yearstat-row{ display:grid; grid-template-columns:1fr 1fr 1fr 1fr; text-align:center; padding:7px 4px; border-bottom:1px solid var(--line); font-size:14px; }
+.yearstat-row:last-child{ border-bottom:none; }
+.yearstat-row.yearstat-head{ font-weight:800; color:var(--green-dark); font-size:12px; border-bottom:2px solid var(--line); }
 
 /* ============================================================
    [CSS 9] 설정 화면
@@ -536,7 +540,7 @@ const KEY = {
   sessionBackupPrev: 'why2korea_scorecard.rounds.sessionbackup.prev'  // 그 이전 세션의 자동 백업
 };
 
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.5.0';
 const SCHEMA_VERSION = 2;
 
 const SCORE_OPTS = [-3,-2,-1,0,1,2,3,4,5];
@@ -1279,11 +1283,17 @@ function renderStats(){
   const parCnt = holeRecords.filter((x) => x.diff === 0).length;
   const bogey = holeRecords.filter((x) => x.diff === 1).length;
   const doubleUp = holeRecords.filter((x) => x.diff >= 2).length;
+  const joinCount = list.filter((r) => r.joinType === 'join').length;
 
   const compRows = topCompanions(list);
   const companionRowsHtml = compRows.length
     ? compRows.map((c, i) => `<div class="companionrow"><span class="rank">${i+1}</span><span class="name">${esc(c.name)}</span><span class="cnt">${c.count}회</span></div>`).join('')
     : '<div class="emptynote" style="padding:16px 0;">동반자 기록이 없습니다</div>';
+
+  const yearRows = yearlyRoundStats(list);
+  const yearRowsHtml = yearRows.length
+    ? yearRows.map((y) => `<div class="yearstat-row"><span>${esc(y.year)}</span><span>${y.total}</span><span>${y.domestic}</span><span>${y.overseas}</span></div>`).join('')
+    : '<div class="emptynote" style="padding:16px 0;">기록이 없습니다</div>';
 
   wrap.innerHTML = `
     <div class="statgrid">
@@ -1304,7 +1314,15 @@ function renderStats(){
       <div class="statcard compact"><div class="k">파</div><div class="v">${parCnt}</div></div>
       <div class="statcard compact"><div class="k">보기</div><div class="v">${bogey}</div></div>
       <div class="statcard compact"><div class="k">더블보기 이상</div><div class="v">${doubleUp}</div></div>
+      <div class="statcard compact"><div class="k">조인 횟수</div><div class="v">${joinCount}</div></div>
       <div class="statcard compact"><div class="k">라운딩 횟수</div><div class="v">${list.length}</div></div>
+    </div>
+    <div class="statcard wide" style="margin-top:10px;">
+      <div class="k">연도별 라운딩 횟수</div>
+      <div class="yearstat-table">
+        <div class="yearstat-row yearstat-head"><span>연도</span><span>총</span><span>국내</span><span>해외</span></div>
+        ${yearRowsHtml}
+      </div>
     </div>
     <div class="statcard wide" style="margin-top:10px;">
       <div class="k">동반자 방문 횟수 TOP 10</div>
@@ -1330,6 +1348,18 @@ function topCompanions(list){
     .map((name) => ({ name, count: counts[name] }))
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
     .slice(0, 10);
+}
+
+function yearlyRoundStats(list){
+  const byYear = {};
+  list.forEach((r) => {
+    const year = (r.date || '').slice(0, 4) || '(연도 미상)';
+    if (!byYear[year]) byYear[year] = { total: 0, domestic: 0, overseas: 0 };
+    byYear[year].total++;
+    if (r.locationType === 'overseas') byYear[year].overseas++;
+    else byYear[year].domestic++;
+  });
+  return Object.keys(byYear).sort((a, b) => b.localeCompare(a)).map((year) => ({ year, ...byYear[year] }));
 }
 
 /* ============================================================================
