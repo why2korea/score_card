@@ -10,7 +10,7 @@
       그러면 옛 캐시를 버리고 새 파일을 내려받습니다.
    ============================================================ */
 
-const CACHE_NAME = 'why2korea-scorecard-v13';
+const CACHE_NAME = 'why2korea-scorecard-v14';
 
 const PRECACHE_FILES = [
   './',
@@ -57,8 +57,12 @@ self.addEventListener('fetch', (event) => {
                  (request.headers.get('accept') || '').includes('text/html');
 
   if (isHtml) {
+    // GitHub Pages가 index.html에 Cache-Control: max-age=600을 붙여 보내기 때문에,
+    // 그냥 fetch(request)만 하면 브라우저 HTTP 캐시가 10분간 새 버전을 가로채 버려서
+    // "네트워크 먼저" 전략이 실제로는 오래된 캐시를 계속 돌려주는 문제가 있었음.
+    // cache:'no-store'로 매번 진짜 네트워크까지 가도록 강제함.
     event.respondWith(
-      fetch(request)
+      fetch(request, { cache: 'no-store' })
         .then((response) => {
           const copy = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
