@@ -236,10 +236,21 @@ select.cellsel.par{ color:var(--green-dark); font-weight:700; }
 .statcard{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; }
 .statcard.clickable{ cursor:pointer; }
 .statcard.clickable:active{ transform:scale(0.98); }
-.statcard .k{ font-size:12px; color:var(--sub); font-weight:700; }
+.statcard .k{ font-size:12px; color:var(--sub); font-weight:700; display:flex; align-items:center; gap:4px; }
+.statcard .k .clickhint{ font-size:13px; line-height:1; }
 .statcard .v{ font-size:20px; font-weight:900; color:var(--green-dark); margin-top:4px; }
 .statcard .v small{ font-size:12px; color:var(--sub); font-weight:600; display:block; margin-top:2px; }
 .statcard.wide{ grid-column:1 / -1; }
+.statcard.lowest{ background:#fbe1e1; border-color:#f0c6c6; }
+.statcard.highest{ background:#dde7fb; border-color:#c4d4f5; }
+.statcard.compact{ padding:8px 10px; }
+.statcard.compact .v{ font-size:17px; margin-top:2px; }
+.companionlist{ max-height:280px; overflow-y:auto; margin-top:6px; -webkit-overflow-scrolling:touch; }
+.companionrow{ display:flex; align-items:center; gap:8px; padding:7px 4px; border-bottom:1px solid var(--line); font-size:14px; }
+.companionrow:last-child{ border-bottom:none; }
+.companionrow .rank{ color:var(--sub); font-weight:700; width:20px; flex:0 0 auto; }
+.companionrow .name{ flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.companionrow .cnt{ font-weight:800; color:var(--green-dark); flex:0 0 auto; }
 
 /* ============================================================
    [CSS 9] 설정 화면
@@ -1250,26 +1261,35 @@ function renderStats(){
   const bogey = holeRecords.filter((x) => x.diff === 1).length;
   const doubleUp = holeRecords.filter((x) => x.diff >= 2).length;
 
+  const compRows = topCompanions(list);
+  const companionRowsHtml = compRows.length
+    ? compRows.map((c, i) => `<div class="companionrow"><span class="rank">${i+1}</span><span class="name">${esc(c.name)}</span><span class="cnt">${c.count}회</span></div>`).join('')
+    : '<div class="emptynote" style="padding:16px 0;">동반자 기록이 없습니다</div>';
+
   wrap.innerHTML = `
     <div class="statgrid">
-      <div class="statcard wide clickable" id="stat-min">
-        <div class="k">최저타 (눌러서 스코어카드 보기)</div>
+      <div class="statcard lowest clickable" id="stat-min">
+        <div class="k">최저타 <span class="clickhint">🖱️</span></div>
         <div class="v">${min.strokes}<small>${esc(min.r.date)} · ${esc(min.r.courseName || '')}</small></div>
       </div>
-      <div class="statcard wide clickable" id="stat-max">
-        <div class="k">최고타 (눌러서 스코어카드 보기)</div>
+      <div class="statcard highest clickable" id="stat-max">
+        <div class="k">최고타 <span class="clickhint">🖱️</span></div>
         <div class="v">${max.strokes}<small>${esc(max.r.date)} · ${esc(max.r.courseName || '')}</small></div>
       </div>
-      <div class="statcard"><div class="k">평균 타수</div><div class="v">${avgStrokes}</div></div>
-      <div class="statcard"><div class="k">평균 퍼팅 수</div><div class="v">${avgPutts}</div></div>
-      <div class="statcard"><div class="k">라운딩 횟수</div><div class="v">${list.length}</div></div>
-      <div class="statcard clickable" data-buddy="holeinone"><div class="k">홀인원 (눌러서 목록)</div><div class="v">${holeinone}</div></div>
-      <div class="statcard clickable" data-buddy="albatross"><div class="k">알바트로스 (눌러서 목록)</div><div class="v">${albatross}</div></div>
-      <div class="statcard clickable" data-buddy="eagle"><div class="k">이글 (눌러서 목록)</div><div class="v">${eagle}</div></div>
-      <div class="statcard clickable" data-buddy="birdie"><div class="k">버디 (눌러서 목록)</div><div class="v">${birdie}</div></div>
-      <div class="statcard"><div class="k">파</div><div class="v">${parCnt}</div></div>
-      <div class="statcard"><div class="k">보기</div><div class="v">${bogey}</div></div>
-      <div class="statcard"><div class="k">더블보기 이상</div><div class="v">${doubleUp}</div></div>
+      <div class="statcard compact"><div class="k">평균 타수</div><div class="v">${avgStrokes}</div></div>
+      <div class="statcard compact"><div class="k">평균 퍼팅 수</div><div class="v">${avgPutts}</div></div>
+      <div class="statcard compact clickable" data-buddy="holeinone"><div class="k">홀인원 <span class="clickhint">🖱️</span></div><div class="v">${holeinone}</div></div>
+      <div class="statcard compact clickable" data-buddy="albatross"><div class="k">알바트로스 <span class="clickhint">🖱️</span></div><div class="v">${albatross}</div></div>
+      <div class="statcard compact clickable" data-buddy="eagle"><div class="k">이글 <span class="clickhint">🖱️</span></div><div class="v">${eagle}</div></div>
+      <div class="statcard compact clickable" data-buddy="birdie"><div class="k">버디 <span class="clickhint">🖱️</span></div><div class="v">${birdie}</div></div>
+      <div class="statcard compact"><div class="k">파</div><div class="v">${parCnt}</div></div>
+      <div class="statcard compact"><div class="k">보기</div><div class="v">${bogey}</div></div>
+      <div class="statcard compact"><div class="k">더블보기 이상</div><div class="v">${doubleUp}</div></div>
+      <div class="statcard compact"><div class="k">라운딩 횟수</div><div class="v">${list.length}</div></div>
+    </div>
+    <div class="statcard wide" style="margin-top:10px;">
+      <div class="k">동반자 방문 횟수 TOP 10</div>
+      <div class="companionlist">${companionRowsHtml}</div>
     </div>`;
 
   $('#stat-min').addEventListener('click', () => openReadonlyPopup(min.r.id));
@@ -1277,6 +1297,20 @@ function renderStats(){
   $$('[data-buddy]', wrap).forEach((el) => {
     el.addEventListener('click', () => openBuddyList(el.dataset.buddy));
   });
+}
+
+function topCompanions(list){
+  const counts = {};
+  list.forEach((r) => {
+    (r.companions || []).forEach((c) => {
+      const name = (c || '').trim();
+      if (name) counts[name] = (counts[name] || 0) + 1;
+    });
+  });
+  return Object.keys(counts)
+    .map((name) => ({ name, count: counts[name] }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+    .slice(0, 10);
 }
 
 /* ============================================================================
