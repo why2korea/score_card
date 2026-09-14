@@ -332,7 +332,7 @@ select.cellsel.par{ color:var(--green-dark); font-weight:700; }
 <div id="view-main" class="view scrollable">
   <div class="brandbar">
     <div class="logo">⛳</div>
-    <h1>why2korea 골프 스코어카드</h1>
+    <h1 id="app-title">why2korea 골프 스코어카드</h1>
     <p>라운딩 기록 · 통계</p>
   </div>
   <div class="pad">
@@ -481,6 +481,14 @@ select.cellsel.par{ color:var(--green-dark); font-weight:700; }
         <button class="btn block small" id="btn-recover-session">최근 자동 백업에서 복구</button>
       </div>
       <div class="formrow">
+        <label>앱 이름(닉네임)</label>
+        <input type="text" class="field" id="f-nickname" placeholder="예: why2korea">
+      </div>
+      <div class="settinginfo">
+        메인 화면 상단의 "◯◯◯ 골프 스코어카드" 이름을 원하는 대로 바꿉니다. 비워두면 기본값인
+        "why2korea"로 표시됩니다.
+      </div>
+      <div class="formrow">
         <label>기본 사용자 (내 이름)</label>
         <input type="text" class="field" id="f-mainuser" placeholder="예: 나">
       </div>
@@ -498,6 +506,7 @@ select.cellsel.par{ color:var(--green-dark); font-weight:700; }
         맨 앞에 오도록 정렬합니다. 비워두면 정렬하지 않고 입력한 순서 그대로 표시합니다. 이 두
         이름은 이 기기의 브라우저에만 저장되고 앱 파일(GitHub)에는 올라가지 않습니다.
       </div>
+      <button class="btn block small" id="btn-save-names">이름 저장</button>
       <button class="btn block primary" id="btn-export">⬇ 엑셀로 내보내기</button>
       <button class="btn block" id="btn-restore">⬆ 엑셀에서 복원</button>
       <input type="file" id="restore-file" accept=".xlsx" class="hidden">
@@ -626,12 +635,17 @@ function sortedCompanions(r){
    [2] 데이터
    ============================================================================ */
 let ROUNDS = load(KEY.rounds, []);
-let SETTINGS = load(KEY.settings, { mainUser: '', buddyName: '' });
+let SETTINGS = load(KEY.settings, { mainUser: '', buddyName: '', nickname: '' });
 let currentRoundId = null;
 let activeModalCloser = null;
 
 function saveSettings(){ save(KEY.settings, SETTINGS); }
 function mainUserName(){ return (SETTINGS.mainUser || '').trim() || '나'; }
+function appNickname(){ return (SETTINGS.nickname || '').trim() || 'why2korea'; }
+function renderAppTitle(){
+  const el = $('#app-title');
+  if (el) el.textContent = `${appNickname()} 골프 스코어카드`;
+}
 
 function saveRounds(){ save(KEY.rounds, ROUNDS); }
 
@@ -1483,11 +1497,17 @@ function openConfirm2(msg, labelYes, labelNo, handlers){
    ============================================================================ */
 function openSettings(){
   showView('settings');
+  $('#f-nickname').value = SETTINGS.nickname || '';
   $('#f-mainuser').value = SETTINGS.mainUser || '';
   $('#f-buddyname').value = SETTINGS.buddyName || '';
   renderBackupStatus();
 }
 $('#settings-back').addEventListener('click', goBackInternal);
+$('#f-nickname').addEventListener('input', (e) => {
+  SETTINGS.nickname = e.target.value;
+  saveSettings();
+  renderAppTitle();
+});
 $('#f-mainuser').addEventListener('input', (e) => {
   SETTINGS.mainUser = e.target.value;
   saveSettings();
@@ -1495,6 +1515,14 @@ $('#f-mainuser').addEventListener('input', (e) => {
 $('#f-buddyname').addEventListener('input', (e) => {
   SETTINGS.buddyName = e.target.value;
   saveSettings();
+});
+$('#btn-save-names').addEventListener('click', () => {
+  SETTINGS.nickname = $('#f-nickname').value;
+  SETTINGS.mainUser = $('#f-mainuser').value;
+  SETTINGS.buddyName = $('#f-buddyname').value;
+  saveSettings();
+  renderAppTitle();
+  toast('이름이 저장되었습니다');
 });
 $('#btn-recover-session').addEventListener('click', manualSessionRestore);
 
@@ -1687,6 +1715,8 @@ function doRestore(parsedRounds, mode){
    ============================================================================ */
 function initApp(){
   history.replaceState({ nav: true }, '', location.href);
+
+  renderAppTitle();
 
   const inc = latestIncomplete();
   if (inc) { viewStack = ['main', 'scorecard']; openScorecard(inc.id); }
