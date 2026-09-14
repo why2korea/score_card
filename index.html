@@ -16,8 +16,6 @@
 <meta name="apple-mobile-web-app-title" content="골프스코어">
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
 
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
-
 <style>
 /* ============================================================
    [CSS 1] 색 설정 — 골프장 필드(그린) 톤 + 야외 햇빛 아래 가독성
@@ -189,7 +187,6 @@ select.cellsel.par{ color:var(--green-dark); font-weight:700; }
   background:#fff; display:flex; align-items:center; justify-content:center; padding:0; cursor:pointer;
 }
 .teebtn:active{ transform:scale(0.94); }
-.tablehint{ font-size:12px; color:var(--green-dark); font-weight:700; padding:0 2px; display:flex; align-items:center; gap:6px; }
 
 /* ============================================================
    [CSS 6] 요약 통계 박스
@@ -238,13 +235,7 @@ select.cellsel.par{ color:var(--green-dark); font-weight:700; }
 .statcard.wide{ grid-column:1 / -1; }
 
 /* ============================================================
-   [CSS 9] 지도
-   ============================================================ */
-#mapEl{ flex:1 1 auto; min-height:0; }
-.mapstatus{ padding:8px 12px; font-size:12px; color:var(--sub); background:var(--card); border-bottom:1px solid var(--line); flex:0 0 auto; }
-
-/* ============================================================
-   [CSS 10] 설정 화면
+   [CSS 9] 설정 화면
    ============================================================ */
 .settinglist{ display:flex; flex-direction:column; gap:10px; }
 .settinginfo{ font-size:12px; color:var(--sub); line-height:1.6; padding:0 2px; }
@@ -317,7 +308,7 @@ select.cellsel.par{ color:var(--green-dark); font-weight:700; }
   <div class="brandbar">
     <div class="logo">⛳</div>
     <h1>why2korea 골프 스코어카드</h1>
-    <p>라운딩 기록 · 통계 · 지도</p>
+    <p>라운딩 기록 · 통계</p>
   </div>
   <div class="pad">
     <div class="menu">
@@ -336,10 +327,6 @@ select.cellsel.par{ color:var(--green-dark); font-weight:700; }
       <button class="menubtn" id="btn-stats">
         <span class="emoji">📊</span>
         <span><span>통계</span><span class="sub">전체 라운딩 분석</span></span>
-      </button>
-      <button class="menubtn" id="btn-map">
-        <span class="emoji">🗺️</span>
-        <span><span>지도</span><span class="sub">라운딩한 골프장 위치</span></span>
       </button>
       <button class="menubtn" id="btn-settings">
         <span class="emoji">⚙️</span>
@@ -381,7 +368,6 @@ select.cellsel.par{ color:var(--green-dark); font-weight:700; }
         </div>
       </div>
       <div class="formrow"><label>골프장 이름</label><input type="text" class="field" id="f-course" placeholder="골프장 이름"></div>
-      <div class="formrow"><label>골프장 주소 (지도용)</label><input type="text" class="field" id="f-addr" placeholder="예: 경기도 ○○시 ○○로 123"></div>
       <div class="rowgrid4">
         <label class="span3">동반자 (최대 3명)</label><label>캐디명</label>
         <input type="text" class="field compact" id="f-p1" placeholder="동반자 1">
@@ -402,11 +388,10 @@ select.cellsel.par{ color:var(--green-dark); font-weight:700; }
       </div>
     </div>
 
-    <div class="tablehint">👇 Par → score(+/−) → putt → Tee(티샷 방향) 순서로 입력하세요 (좌우로 밀어서 18홀 이동, 라벨열 고정)</div>
     <div class="tablewrap" id="tablewrap"></div>
 
     <div class="summarybox">
-      <div class="stitle">스코어 요약 (나)</div>
+      <div class="stitle" id="summary-title">스코어 요약</div>
       <div class="sbody" id="summary-body">—</div>
     </div>
   </div>
@@ -444,20 +429,7 @@ select.cellsel.par{ color:var(--green-dark); font-weight:700; }
 </div>
 
 <!-- ============================================================
-     화면 5: 지도
-     ============================================================ -->
-<div id="view-map" class="view hidden">
-  <div class="topbar">
-    <div class="iconbtn" id="map-back">←</div>
-    <div class="title">지도</div>
-    <div style="width:44px"></div>
-  </div>
-  <div class="mapstatus" id="map-status">지도를 준비하는 중...</div>
-  <div id="mapEl"></div>
-</div>
-
-<!-- ============================================================
-     화면 6: 설정
+     화면 5: 설정
      ============================================================ -->
 <div id="view-settings" class="view scrollable hidden">
   <div class="topbar">
@@ -467,6 +439,15 @@ select.cellsel.par{ color:var(--green-dark); font-weight:700; }
   </div>
   <div class="pad">
     <div class="settinglist">
+      <div class="formrow">
+        <label>기본 사용자 (내 이름)</label>
+        <input type="text" class="field" id="f-mainuser" placeholder="이용석">
+      </div>
+      <div class="settinginfo">
+        여기 입력한 이름이 스코어카드의 "내 스코어" 주인으로 저장됩니다. 이 앱을 다른 사람에게
+        선물하거나 물려줄 때, 나중에 사진으로 스코어카드를 불러들이는 기능이 추가되면 이 이름으로
+        기본 사용자와 동반자를 구분해 매칭하는 데 쓰입니다.
+      </div>
       <button class="btn block primary" id="btn-export">⬇ 엑셀로 내보내기</button>
       <button class="btn block" id="btn-restore">⬆ 엑셀에서 복원</button>
       <input type="file" id="restore-file" accept=".xlsx" class="hidden">
@@ -489,7 +470,6 @@ select.cellsel.par{ color:var(--green-dark); font-weight:700; }
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 'use strict';
@@ -499,11 +479,11 @@ select.cellsel.par{ color:var(--green-dark); font-weight:700; }
    ============================================================================ */
 const KEY = {
   rounds:     'why2korea_scorecard.rounds',
-  geocache:   'why2korea_scorecard.geocache',
+  settings:   'why2korea_scorecard.settings',
   autobackup: 'why2korea_scorecard.rounds.autobackup'
 };
 
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 const SCHEMA_VERSION = 2;
 
 const ME_NAME = '이용석';
@@ -592,13 +572,14 @@ function sortedCompanions(r){
    [2] 데이터
    ============================================================================ */
 let ROUNDS = load(KEY.rounds, []);
-let GEOCACHE = load(KEY.geocache, {});
+let SETTINGS = load(KEY.settings, { mainUser: ME_NAME });
 let currentRoundId = null;
-let map = null;
 let activeModalCloser = null;
 
+function saveSettings(){ save(KEY.settings, SETTINGS); }
+function mainUserName(){ return (SETTINGS.mainUser || '').trim() || ME_NAME; }
+
 function saveRounds(){ save(KEY.rounds, ROUNDS); }
-function saveGeocache(){ save(KEY.geocache, GEOCACHE); }
 
 function getRound(id){ return ROUNDS.find((r) => r.id === id); }
 
@@ -612,7 +593,6 @@ function newRound(){
     locationType: 'domestic',   // 'domestic' | 'overseas'
     country: '',
     courseName: '',
-    courseAddress: '',
     caddie: '',
     caddiePoop: false,
     caddieStars: 0,
@@ -749,7 +729,6 @@ $('#btn-resume').addEventListener('click', () => {
 });
 $('#btn-history').addEventListener('click', () => goTo('history', openHistory));
 $('#btn-stats').addEventListener('click', () => goTo('stats', openStats));
-$('#btn-map').addEventListener('click', () => goTo('map', openMap));
 $('#btn-settings').addEventListener('click', () => goTo('settings', openSettings));
 $('#btn-exit').addEventListener('click', attemptClose);
 
@@ -794,7 +773,6 @@ function bindTopFields(r){
   $('#f-date').value = r.date || '';
   $('#f-time').value = validTime(r.time) ? r.time : '';
   $('#f-course').value = r.courseName || '';
-  $('#f-addr').value = r.courseAddress || '';
   $('#f-caddie').value = r.caddie || '';
   $('#f-comment').value = r.comment || '';
   $('#f-country').value = r.country || '';
@@ -806,7 +784,6 @@ function bindTopFields(r){
   wire('#f-date', 'date');
   wire('#f-time', 'time');
   wire('#f-course', 'courseName');
-  wire('#f-addr', 'courseAddress');
   wire('#f-caddie', 'caddie');
   wire('#f-comment', 'comment');
   wire('#f-country', 'country');
@@ -974,6 +951,7 @@ function renderTableReadonly(r){
 }
 
 function renderSummary(r){
+  $('#summary-title').textContent = `스코어 요약 (${mainUserName()})`;
   const counts = {};
   // Par를 입력한 홀만 "실제로 플레이한 홀"로 보고 집계합니다 (스코어는 기본값 0이 항상 채워져 있으므로)
   r.myScores.forEach((v, h) => { if (v != null && r.pars[h] != null) counts[v] = (counts[v] || 0) + 1; });
@@ -1285,99 +1263,17 @@ function openConfirm3(msg, labelA, labelB, labelC, handlers){
 }
 
 /* ============================================================================
-   [8] 지도 화면 (Leaflet + OpenStreetMap, 무료·키 불필요)
+   [8] 설정 화면 — 기본 사용자 / 엑셀 내보내기 / 복원
    ============================================================================ */
-function openMap(){
-  showView('map');
-  $('#map-status').textContent = '지도를 준비하는 중...';
-  setTimeout(initMapAndMarkers, 30); // 화면 전환(레이아웃) 이후에 초기화해야 타일이 정상 표시됨
+function openSettings(){
+  showView('settings');
+  $('#f-mainuser').value = SETTINGS.mainUser || '';
 }
-$('#map-back').addEventListener('click', goBackInternal);
-
-async function initMapAndMarkers(){
-  if (!map) {
-    map = L.map('mapEl');
-    // 처음 열면 대한민국(제주 포함)이 가장 크게 보이도록 맞추고, 축소하면 다른 나라도 보임
-    map.fitBounds([[33.0, 124.3], [38.7, 131.9]]);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors',
-      maxZoom: 18
-    }).addTo(map);
-  } else {
-    map.invalidateSize();
-  }
-
-  const list = ROUNDS.filter((r) => r.completed && r.courseAddress && r.courseAddress.trim());
-  if (!list.length) {
-    $('#map-status').textContent = '지도에 표시할 라운딩이 없습니다 (주소가 입력된 완료 라운딩 필요)';
-    return;
-  }
-
-  // 골프장(주소) 단위로 묶기
-  const groups = {};
-  list.forEach((r) => {
-    const key = r.courseAddress.trim();
-    if (!groups[key]) groups[key] = { address: key, courseName: r.courseName, visits: [] };
-    groups[key].visits.push(r);
-  });
-  const keys = Object.keys(groups);
-
-  let placed = 0, failed = 0;
-  for (let i = 0; i < keys.length; i++) {
-    const g = groups[keys[i]];
-    $('#map-status').textContent = `골프장 위치 확인 중... (${i+1}/${keys.length})`;
-    const geo = await geocodeCached(g.address);
-    if (geo && geo.lat != null) {
-      const popupHtml = g.visits
-        .sort((a,b) => (b.date||'').localeCompare(a.date||''))
-        .map((r) => {
-          const tot = strokesSum(r, r.myScores, ALL_RANGE);
-          return `${esc(r.date)} · ${tot.cnt ? tot.sum + '타' : '기록없음'}`;
-        }).join('<br>');
-      L.marker([geo.lat, geo.lng]).addTo(map)
-        .bindPopup(`<b>${esc(g.courseName || g.address)}</b><br>${popupHtml}`);
-      placed++;
-    } else {
-      failed++;
-    }
-    // Nominatim 사용 정책: 초당 1회 이하로 요청 (연속 골프장이 여러 곳일 때만 대기)
-    if (i < keys.length - 1) await new Promise((res) => setTimeout(res, 1100));
-  }
-
-  $('#map-status').textContent = failed
-    ? `골프장 ${placed}곳 표시 (주소 확인 실패 ${failed}곳 제외)`
-    : `골프장 ${placed}곳 표시됨`;
-}
-
-async function geocodeCached(address){
-  if (GEOCACHE[address] !== undefined) return GEOCACHE[address];
-  try {
-    const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(address);
-    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-    if (!res.ok) throw new Error('geocode http ' + res.status);
-    const data = await res.json();
-    if (data && data[0]) {
-      const geo = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-      GEOCACHE[address] = geo;
-      saveGeocache();
-      return geo;
-    }
-    GEOCACHE[address] = { lat: null };
-    saveGeocache();
-    return GEOCACHE[address];
-  } catch (e) {
-    // 인터넷이 없거나 검색 실패 — 앱이 멈추지 않도록 실패만 기록하고 계속 진행
-    GEOCACHE[address] = { lat: null };
-    saveGeocache();
-    return GEOCACHE[address];
-  }
-}
-
-/* ============================================================================
-   [9] 설정 화면 — 엑셀 내보내기 / 복원
-   ============================================================================ */
-function openSettings(){ showView('settings'); }
 $('#settings-back').addEventListener('click', goBackInternal);
+$('#f-mainuser').addEventListener('input', (e) => {
+  SETTINGS.mainUser = e.target.value;
+  saveSettings();
+});
 
 function excelTimestamp(){
   const d = new Date();
