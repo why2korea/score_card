@@ -141,6 +141,17 @@ body{
 
 .commentfield{ width:100%; }
 
+.formrow-inline{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.formrow-inline > label{ font-size:12px; color:var(--sub); font-weight:700; flex:0 0 auto; white-space:nowrap; }
+.formrow-inline input{ width:auto; }
+.formrow-inline .inline-inputs{ display:flex; gap:6px; flex:1 1 0%; min-width:0; }
+.formrow-inline .inline-inputs input{ flex:1 1 0%; min-width:0; }
+.formrow-inline input.grow{ flex:1 1 0%; min-width:0; }
+.caddierate.compact{ gap:4px; }
+.caddierate.compact .poopbtn{ width:32px; height:32px; font-size:16px; border-radius:8px; }
+.caddierate.compact .stars{ gap:1px; }
+.caddierate.compact .starbtn{ width:22px; height:32px; font-size:18px; }
+
 /* ============================================================
    [CSS 4] 스코어카드 — 상단 요약
    ============================================================ */
@@ -148,10 +159,6 @@ body{
   background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px;
   display:flex; flex-direction:column; gap:10px;
 }
-.rowgrid2{ display:grid; grid-template-columns:1fr 1fr; gap:4px 10px; }
-.rowgrid2 label, .rowgrid4 label{ font-size:12px; color:var(--sub); font-weight:700; padding-left:2px; }
-.rowgrid4{ display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:4px 8px; }
-.rowgrid4 label.span3{ grid-column:span 3; }
 .field.compact{ padding:9px 8px; font-size:14px; }
 .dtrow{ display:flex; gap:6px; }
 .dtrow input[type=date]{ flex:1.3; }
@@ -368,23 +375,26 @@ select.cellsel.par{ color:var(--green-dark); font-weight:700; }
         </div>
       </div>
       <div class="formrow"><label>골프장 이름</label><input type="text" class="field" id="f-course" placeholder="골프장 이름"></div>
-      <div class="rowgrid4">
-        <label class="span3">동반자 (최대 3명)</label><label>캐디명</label>
-        <input type="text" class="field compact" id="f-p1" placeholder="동반자 1">
-        <input type="text" class="field compact" id="f-p2" placeholder="동반자 2">
-        <input type="text" class="field compact" id="f-p3" placeholder="동반자 3">
-        <input type="text" class="field compact" id="f-caddie" placeholder="캐디명">
+      <div class="formrow-inline">
+        <label>동반자(최대 3명)</label>
+        <div class="inline-inputs">
+          <input type="text" class="field compact" id="f-p1" placeholder="동반자 1">
+          <input type="text" class="field compact" id="f-p2" placeholder="동반자 2">
+          <input type="text" class="field compact" id="f-p3" placeholder="동반자 3">
+        </div>
       </div>
-      <div class="formrow">
-        <label>라운딩 한줄평</label>
-        <input type="text" class="field commentfield" id="f-comment" maxlength="200" placeholder="오늘 라운딩 한줄평">
-      </div>
-      <div class="formrow">
-        <label>캐디 평가</label>
-        <div class="caddierate">
+      <div class="formrow-inline">
+        <label>캐디명</label>
+        <input type="text" class="field compact grow" id="f-caddie" placeholder="캐디명">
+        <label>평가</label>
+        <div class="caddierate compact">
           <button type="button" class="poopbtn" id="caddie-poop" aria-label="엉망(똥)">💩</button>
           <div class="stars" id="caddie-stars"></div>
         </div>
+      </div>
+      <div class="formrow-inline">
+        <label>라운딩 한줄평</label>
+        <input type="text" class="field commentfield grow" id="f-comment" maxlength="200" placeholder="오늘 라운딩 한줄평">
       </div>
     </div>
 
@@ -441,12 +451,21 @@ select.cellsel.par{ color:var(--green-dark); font-weight:700; }
     <div class="settinglist">
       <div class="formrow">
         <label>기본 사용자 (내 이름)</label>
-        <input type="text" class="field" id="f-mainuser" placeholder="이용석">
+        <input type="text" class="field" id="f-mainuser" placeholder="예: 나">
       </div>
       <div class="settinginfo">
         여기 입력한 이름이 스코어카드의 "내 스코어" 주인으로 저장됩니다. 이 앱을 다른 사람에게
         선물하거나 물려줄 때, 나중에 사진으로 스코어카드를 불러들이는 기능이 추가되면 이 이름으로
         기본 사용자와 동반자를 구분해 매칭하는 데 쓰입니다.
+      </div>
+      <div class="formrow">
+        <label>우선 정렬 동반자 이름</label>
+        <input type="text" class="field" id="f-buddyname" placeholder="예: 배우자 이름">
+      </div>
+      <div class="settinginfo">
+        여기 입력한 이름의 동반자가 있으면 히스토리/통계/엑셀에서 동반자 목록을 표시할 때 항상
+        맨 앞에 오도록 정렬합니다. 비워두면 정렬하지 않고 입력한 순서 그대로 표시합니다. 이 두
+        이름은 이 기기의 브라우저에만 저장되고 앱 파일(GitHub)에는 올라가지 않습니다.
       </div>
       <button class="btn block primary" id="btn-export">⬇ 엑셀로 내보내기</button>
       <button class="btn block" id="btn-restore">⬆ 엑셀에서 복원</button>
@@ -486,8 +505,6 @@ const KEY = {
 const APP_VERSION = '1.2.0';
 const SCHEMA_VERSION = 2;
 
-const ME_NAME = '이용석';
-const BUDDY_NAME = '유희진';
 const SCORE_OPTS = [-3,-2,-1,0,1,2,3,4,5];
 const PUTT_OPTS  = [0,1,2,3,4,5];
 const PAR_OPTS   = [3,4,5,6];
@@ -560,24 +577,28 @@ function fmtScoreDiff(diff){
 }
 function validTime(t){ return typeof t === 'string' && /^\d{2}:\d{2}$/.test(t); }
 function fmtDateTime(r){ return r.date + (validTime(r.time) ? ' ' + r.time : ''); }
-// 플레이어 정렬 규칙: 이용석(나)이 항상 먼저, 동반자 중 유희진이 있으면 항상 그 다음(나머지는 입력 순서 유지)
+// 플레이어 정렬 규칙: 기본 사용자(나)가 항상 먼저(별도 처리 불필요, 애초에 동반자 목록엔 없음),
+// 설정에서 지정한 "우선 정렬 동반자 이름"이 있으면 동반자 중 그 이름이 항상 먼저 오도록 정렬함
+// (나머지는 입력 순서 유지). 이름은 설정 화면에서만 입력하며 소스 코드에는 저장하지 않음.
 function sortedCompanions(r){
   const names = (r.companions || []).map((c) => (c || '').trim()).filter(Boolean);
-  const buddy = names.filter((n) => n === BUDDY_NAME);
-  const others = names.filter((n) => n !== BUDDY_NAME);
-  return buddy.concat(others);
+  const buddy = (SETTINGS.buddyName || '').trim();
+  if (!buddy) return names;
+  const priority = names.filter((n) => n === buddy);
+  const others = names.filter((n) => n !== buddy);
+  return priority.concat(others);
 }
 
 /* ============================================================================
    [2] 데이터
    ============================================================================ */
 let ROUNDS = load(KEY.rounds, []);
-let SETTINGS = load(KEY.settings, { mainUser: ME_NAME });
+let SETTINGS = load(KEY.settings, { mainUser: '', buddyName: '' });
 let currentRoundId = null;
 let activeModalCloser = null;
 
 function saveSettings(){ save(KEY.settings, SETTINGS); }
-function mainUserName(){ return (SETTINGS.mainUser || '').trim() || ME_NAME; }
+function mainUserName(){ return (SETTINGS.mainUser || '').trim() || '나'; }
 
 function saveRounds(){ save(KEY.rounds, ROUNDS); }
 
@@ -1268,10 +1289,15 @@ function openConfirm3(msg, labelA, labelB, labelC, handlers){
 function openSettings(){
   showView('settings');
   $('#f-mainuser').value = SETTINGS.mainUser || '';
+  $('#f-buddyname').value = SETTINGS.buddyName || '';
 }
 $('#settings-back').addEventListener('click', goBackInternal);
 $('#f-mainuser').addEventListener('input', (e) => {
   SETTINGS.mainUser = e.target.value;
+  saveSettings();
+});
+$('#f-buddyname').addEventListener('input', (e) => {
+  SETTINGS.buddyName = e.target.value;
   saveSettings();
 });
 
