@@ -122,6 +122,9 @@ body{
 .btn.block{ width:100%; }
 .btn.small{ min-height:34px; padding:0 10px; font-size:13px; }
 
+.radiorow{ display:flex; gap:18px; flex-wrap:wrap; }
+.radioblock{ display:flex; flex-direction:column; gap:2px; }
+.radioblock > label{ font-size:12px; color:var(--sub); font-weight:700; padding-left:2px; }
 .radiogroup{ display:flex; gap:14px; padding:6px 2px; }
 .radiobtn{ display:flex; align-items:center; gap:6px; font-size:15px; font-weight:700; color:var(--text); }
 .radiobtn input{ width:20px; height:20px; accent-color:var(--green); }
@@ -371,11 +374,20 @@ select.cellsel.par{ color:var(--green-dark); font-weight:700; }
   </div>
   <div class="pad">
     <div class="topcard">
-      <div class="formrow">
-        <label>국내 / 해외</label>
-        <div class="radiogroup" id="loctype-group">
-          <label class="radiobtn"><input type="radio" name="loctype" value="domestic"> 국내</label>
-          <label class="radiobtn"><input type="radio" name="loctype" value="overseas"> 해외</label>
+      <div class="radiorow">
+        <div class="radioblock">
+          <label>국내 / 해외</label>
+          <div class="radiogroup" id="loctype-group">
+            <label class="radiobtn"><input type="radio" name="loctype" value="domestic"> 국내</label>
+            <label class="radiobtn"><input type="radio" name="loctype" value="overseas"> 해외</label>
+          </div>
+        </div>
+        <div class="radioblock">
+          <label>조인 여부</label>
+          <div class="radiogroup" id="jointype-group">
+            <label class="radiobtn"><input type="radio" name="jointype" value="normal"> 일반</label>
+            <label class="radiobtn"><input type="radio" name="jointype" value="join"> 조인</label>
+          </div>
         </div>
       </div>
       <div class="formrow hidden" id="row-country">
@@ -524,7 +536,7 @@ const KEY = {
   sessionBackupPrev: 'why2korea_scorecard.rounds.sessionbackup.prev'  // 그 이전 세션의 자동 백업
 };
 
-const APP_VERSION = '1.3.0';
+const APP_VERSION = '1.4.0';
 const SCHEMA_VERSION = 2;
 
 const SCORE_OPTS = [-3,-2,-1,0,1,2,3,4,5];
@@ -703,6 +715,7 @@ function newRound(){
     time: nowTimeStr(),
     locationType: 'domestic',   // 'domestic' | 'overseas'
     country: '',
+    joinType: 'normal',         // 'normal' | 'join' — 국내/해외와 독립된 별개 항목
     courseName: '',
     caddie: '',
     caddiePoop: false,
@@ -736,6 +749,7 @@ function normalizeRound(r){
   if (typeof r.time !== 'string') r.time = null;                       // 시간 없던 기록: 유효하지 않음(목록에 표시 안 됨)
   if (r.locationType !== 'domestic' && r.locationType !== 'overseas') r.locationType = 'domestic';
   if (typeof r.country !== 'string') r.country = '';
+  if (r.joinType !== 'normal' && r.joinType !== 'join') r.joinType = 'normal';
   if (typeof r.caddiePoop !== 'boolean') r.caddiePoop = false;
   if (typeof r.caddieStars !== 'number') r.caddieStars = 0;
   if (typeof r.comment !== 'string') r.comment = '';
@@ -912,6 +926,11 @@ function bindTopFields(r){
     };
   });
   $('#row-country').classList.toggle('hidden', (r.locationType || 'domestic') !== 'overseas');
+
+  $$('input[name=jointype]').forEach((el) => {
+    el.checked = (el.value === (r.joinType || 'normal'));
+    el.onchange = () => { r.joinType = el.value; touch(r); };
+  });
 
   // 동반자 최대 3명 (이름만, 스코어는 나만 기록)
   [0, 1, 2].forEach((i) => {
@@ -1339,7 +1358,7 @@ function openReadonlyPopup(id){
   const bodyHtml = `
     <div class="ro-infogrid">
       <div><span class="k">일시</span> ${esc(fmtDateTime(r)) || '–'}</div>
-      <div><span class="k">구분</span> ${esc(locTag(r))}</div>
+      <div><span class="k">구분</span> ${esc(locTag(r))} · ${r.joinType === 'join' ? '조인' : '일반'}</div>
       <div><span class="k">골프장</span> ${esc(r.courseName || '(이름없음)')}</div>
       <div><span class="k">동반자</span> ${companions.length ? esc(companions.join(', ')) : '–'}</div>
       <div><span class="k">캐디</span> ${esc(r.caddie || '–')} · ${esc(caddieEvalTxt)}</div>
@@ -1476,7 +1495,7 @@ function parseScoreDiffCell(v){
   return isNaN(n) ? null : n;
 }
 
-const INFO_HEADER = ['id','일자','시간','국내해외','국가','골프장','동반자','캐디명','캐디평가','한줄평','완료여부','전반명','후반명','생성일시','수정일시','schemaVersion','appVersion'];
+const INFO_HEADER = ['id','일자','시간','국내해외','국가','조인여부','골프장','동반자','캐디명','캐디평가','한줄평','완료여부','전반명','후반명','생성일시','수정일시','schemaVersion','appVersion'];
 const SCORE_HEADER = ['라운드ID','홀번호','Par','타수','스코어(+/-)','퍼팅','Tee'];
 
 $('#btn-export').addEventListener('click', () => {
@@ -1486,6 +1505,7 @@ $('#btn-export').addEventListener('click', () => {
   const infoRows = [INFO_HEADER].concat(ROUNDS.map((r) => [
     r.id, r.date || '', r.time || '', r.locationType === 'overseas' ? '해외' : '국내',
     r.locationType === 'overseas' ? (r.country || '') : '',
+    r.joinType === 'join' ? '조인' : '일반',
     r.courseName || '', sortedCompanions(r).join(', '), r.caddie || '', encodeCaddieEval(r), r.comment || '',
     r.completed ? 'Y' : 'N', r.frontName || '', r.backName || '', r.createdAt || '', r.updatedAt || '',
     r.schemaVersion || SCHEMA_VERSION, r.appVersion || APP_VERSION
@@ -1544,6 +1564,7 @@ $('#restore-file').addEventListener('change', (e) => {
         r.time = row[idx('시간')] || null;
         r.locationType = row[idx('국내해외')] === '해외' ? 'overseas' : 'domestic';
         r.country = row[idx('국가')] || '';
+        r.joinType = row[idx('조인여부')] === '조인' ? 'join' : 'normal';
         r.courseName = row[idx('골프장')] || '';
         r.caddie = row[idx('캐디명')] || '';
         r.caddiePoop = evalDecoded.poop;

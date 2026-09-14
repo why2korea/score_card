@@ -10,7 +10,7 @@
       그러면 옛 캐시를 버리고 새 파일을 내려받습니다.
    ============================================================ */
 
-const CACHE_NAME = 'why2korea-scorecard-v10';
+const CACHE_NAME = 'why2korea-scorecard-v11';
 
 const PRECACHE_FILES = [
   './',
