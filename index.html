@@ -177,15 +177,25 @@ table.scoretable td, table.scoretable th{ min-width:54px; height:52px; }
   position:sticky; left:0; z-index:2; border-right:2px solid var(--line);
 }
 tr.rowhead th.stickycol{ background:#e3f0e6; z-index:3; }
+.holename-input{
+  width:100%; min-width:0; border:none; background:transparent; color:var(--green-dark);
+  font-weight:800; font-size:13px; text-align:center; padding:0; font-family:inherit;
+}
+.holename-input::placeholder{ color:var(--green-dark); opacity:0.5; }
+.holename-input:focus{ outline:2px solid var(--green); outline-offset:-2px; background:#fff; }
 .rowlabel{ font-weight:800; font-size:14px; }
 .rowlabel.putt{ color:var(--sub); font-weight:700; font-size:13px; }
 select.cellsel{
   width:44px; height:44px; border:2px solid var(--green); border-radius:8px; font-size:15px;
   font-weight:700; text-align:center; background:#f2f9f4; color:var(--text); padding:0;
 }
-select.cellsel.par{ color:var(--green-dark); font-weight:700; }
+select.cellsel.par{ color:var(--green-dark); font-weight:700; border:none; background:transparent; }
 .sumcell{ font-weight:800; background:#f5faf6; }
 .totcell{ font-weight:900; background:#eaf3ec; color:var(--green-dark); }
+/* Par / score / putt 행을 서로 다른 연한 배경색으로 구분(Tee 행은 제외) */
+tr.rowpar td:not(.stickycol):not(.sumcell):not(.totcell){ background:#eaf2fb; }
+tr.rowscore td:not(.stickycol):not(.sumcell):not(.totcell){ background:#fff8e6; }
+tr.rowputt td:not(.stickycol):not(.sumcell):not(.totcell){ background:#f4eefc; }
 .teebtn{
   width:44px; height:44px; border:1px solid var(--line); border-radius:8px;
   background:#fff; display:flex; align-items:center; justify-content:center; padding:0; cursor:pointer;
@@ -1295,9 +1305,12 @@ function renderTable(r){
   let html = '<table class="scoretable"><tbody>';
 
   // 헤더 (라벨 열은 sticky로 고정되어 가로 스크롤해도 항상 보입니다)
-  html += '<tr class="rowhead"><th class="stickycol">홀</th>';
+  // 전반/후반 코스 이름은 각각 "홀"과 "합"(9→10홀 경계) 자리에 입력창으로 넣는다.
+  html += `<tr class="rowhead"><th class="stickycol"><input type="text" class="holename-input" id="f-frontname" value="${esc(r.frontName || '')}" placeholder="전반"></th>`;
   ALL_RANGE.forEach((h) => {
-    html += h === 9 ? '<th>합</th><th>' + (h + 1) + '</th>' : `<th>${h + 1}</th>`;
+    html += h === 9
+      ? `<th><input type="text" class="holename-input" id="f-backname" value="${esc(r.backName || '')}" placeholder="후반"></th><th>${h + 1}</th>`
+      : `<th>${h + 1}</th>`;
   });
   html += '<th>합</th><th>총계</th></tr>';
 
@@ -1397,6 +1410,10 @@ function renderScorecard(){
   bindTopFields(r);
 
   $('#tablewrap').innerHTML = renderTable(r);
+  // 전반/후반 이름 입력창: 선택창들과 달리 재렌더를 부르지 않고 값만 저장해서(touch만 호출),
+  // 타이핑 중 매 글자마다 표 전체가 다시 그려져 포커스가 끊기는 일이 없게 한다.
+  $('#f-frontname', $('#tablewrap')).oninput = (e) => { r.frontName = e.target.value; touch(r); };
+  $('#f-backname', $('#tablewrap')).oninput = (e) => { r.backName = e.target.value; touch(r); };
   $$('select.cellsel', $('#tablewrap')).forEach((el) => {
     el.onchange = () => {
       const h = +el.dataset.hole;
