@@ -988,6 +988,10 @@ function resizeImageToBase64(file, maxDim){
 }
 
 function aiImportPrompt(){
+  const buddy = (SETTINGS.buddyName || '').trim();
+  const companionRule = buddy
+    ? `- 동반자(플레이어) 이름이 카드에 적혀 있으면 companions에 최대 3명까지 넣으세요(본인 제외). 그중 "${buddy}"이(가) 있으면 반드시 companions 배열의 첫 번째로 넣으세요.`
+    : `- 동반자(플레이어) 이름이 카드에 적혀 있으면 companions에 최대 3명까지 넣으세요(본인 제외).`;
   return `당신은 골프 스코어카드 사진을 판독해서 정형 데이터로 변환하는 도우미입니다.
 
 첨부한 사진은 종이 골프 스코어카드입니다. 사진에서 "${mainUserName()}" 본인의 기록만 읽어서
@@ -1000,7 +1004,7 @@ function aiImportPrompt(){
 - putts(퍼트 수)가 카드에 있으면 채우고, 없으면 생략(null)해도 됩니다.
 - 손글씨가 애매하면 가장 가능성 높은 값을 쓰고 notes에 홀 번호와 이유를 남기세요.
 - 절대 숫자를 임의로 지어내지 말고, 확신이 없으면 notes에 명시하세요.
-- 동반자(플레이어) 이름이 카드에 적혀 있으면 companions에 최대 3명까지 넣으세요(본인 제외).
+${companionRule}
 
 JSON 스키마:
 {
