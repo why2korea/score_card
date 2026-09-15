@@ -536,15 +536,28 @@ select.cellsel.par{ color:var(--green-dark); font-weight:700; }
         </label>
       </div>
       <div class="settinginfo">
-        라운드 시작 전 종이 스코어카드 사진을 찍으면 Claude AI가 홀별 파/타수를 읽어 초안을
-        만들어주는 부가 기능입니다. 켜면 메인 화면에 "📷 사진으로 가져오기" 버튼이 나타납니다.
-        AI가 읽은 값은 틀릴 수 있으니 저장 전 반드시 직접 확인·수정해야 합니다.
+        라운드 시작 전 종이 스코어카드 사진을 찍으면 AI가 홀별 파/타수를 읽어 초안을 만들어주는
+        부가 기능입니다. 켜면 메인 화면에 "📷 사진으로 가져오기" 버튼이 나타납니다. AI가 읽은
+        값은 틀릴 수 있으니 저장 전 반드시 직접 확인·수정해야 합니다.
+      </div>
+      <div class="formrow hidden" id="row-ai-mode">
+        <label>가져오기 방식</label>
+        <div class="radiogroup" id="ai-mode-group">
+          <label class="radiobtn"><input type="radio" name="aimode" value="paste"> 붙여넣기 (무료, 기본)</label>
+          <label class="radiobtn"><input type="radio" name="aimode" value="api"> API 직접 연동 (유료)</label>
+        </div>
+      </div>
+      <div class="settinginfo hidden" id="info-ai-paste">
+        사진을 ChatGPT·Gemini·Claude 같은 무료 AI 챗봇 앱에 직접 올려서 분석하고, 그 결과(JSON
+        텍스트)를 이 앱에 붙여넣는 방식입니다. API 키가 필요 없고 비용도 들지 않아 기본값으로
+        추천합니다.
       </div>
       <div class="formrow hidden" id="row-ai-key">
         <label>Claude API 키</label>
         <input type="password" class="field" id="f-ai-key" placeholder="sk-ant-...">
       </div>
       <div class="settinginfo hidden" id="info-ai-key">
+        API 직접 연동을 선택하면 사진 한 장을 분석할 때마다 이 키로 Anthropic API에 과금됩니다.
         이 키는 이 기기의 브라우저에만 저장되고, 사진을 분석할 때마다 이 기기에서 Anthropic
         서버로 직접 전송됩니다(중간 서버 없음). 이 기기를 다른 사람과 같이 쓰거나 개발자도구를
         열어볼 수 있는 환경이면 키가 노출될 수 있으니, 본인만 쓰는 기기에서만 켜두는 걸
@@ -679,7 +692,7 @@ function sortedCompanions(r){
    [2] 데이터
    ============================================================================ */
 let ROUNDS = load(KEY.rounds, []);
-let SETTINGS = load(KEY.settings, { mainUser: '', buddyName: '', nickname: '', aiImportEnabled: false, aiApiKey: '' });
+let SETTINGS = load(KEY.settings, { mainUser: '', buddyName: '', nickname: '', aiImportEnabled: false, aiMode: 'paste', aiApiKey: '' });
 let currentRoundId = null;
 let activeModalCloser = null;
 
@@ -899,13 +912,17 @@ $('#btn-new').addEventListener('click', () => {
 });
 $('#btn-ai-import').addEventListener('click', () => {
   if (!SETTINGS.aiImportEnabled) return;
-  if (!(SETTINGS.aiApiKey || '').trim()) {
-    toast('먼저 설정에서 Claude API 키를 입력해주세요');
-    goTo('settings', openSettings);
-    return;
+  if ((SETTINGS.aiMode || 'paste') === 'api') {
+    if (!(SETTINGS.aiApiKey || '').trim()) {
+      toast('먼저 설정에서 Claude API 키를 입력해주세요');
+      goTo('settings', openSettings);
+      return;
+    }
+    $('#ai-import-file').value = '';
+    $('#ai-import-file').click();
+  } else {
+    openAiPasteImport();
   }
-  $('#ai-import-file').value = '';
-  $('#ai-import-file').click();
 });
 $('#ai-import-file').addEventListener('change', (e) => {
   const file = e.target.files && e.target.files[0];
@@ -1066,27 +1083,72 @@ function applyAiResultToRound(r, ai){
   return clamped;
 }
 
+// AI가 돌려준 JSON(ai)을 새 라운드에 적용하고, 확인용 편집 화면으로 넘긴다.
+// API 직접 호출 경로와 붙여넣기 경로가 이 지점부터 동일하게 동작한다.
+function finishAiImport(ai){
+  const r = newRound();
+  const clamped = applyAiResultToRound(r, ai);
+  r.touched = true;
+  ROUNDS.push(r);
+  saveRounds();
+  let msg = 'AI가 읽은 내용을 불러왔습니다. 저장 전에 꼭 확인해주세요.';
+  if (clamped) msg += ' (일부 값은 범위에 맞게 자동 보정됨)';
+  if (ai.confidence === '낮음') msg += ' 판독 신뢰도가 낮으니 특히 꼼꼼히 확인하세요.';
+  toast(msg);
+  goTo('scorecard', () => openScorecard(r.id));
+}
+
 async function handleAiImportFile(file){
   showAiLoading('사진을 분석하는 중입니다...');
   try {
     const base64 = await resizeImageToBase64(file, 1600);
     const text = await callClaudeVision(base64);
     const ai = parseAiJson(text);
-    const r = newRound();
-    const clamped = applyAiResultToRound(r, ai);
-    r.touched = true;
-    ROUNDS.push(r);
-    saveRounds();
     hideAiLoading();
-    let msg = 'AI가 읽은 내용을 불러왔습니다. 저장 전에 꼭 확인해주세요.';
-    if (clamped) msg += ' (일부 값은 범위에 맞게 자동 보정됨)';
-    if (ai.confidence === '낮음') msg += ' 판독 신뢰도가 낮으니 특히 꼼꼼히 확인하세요.';
-    toast(msg);
-    goTo('scorecard', () => openScorecard(r.id));
+    finishAiImport(ai);
   } catch (err) {
     hideAiLoading();
     toast('사진 분석 실패: ' + (err && err.message ? err.message : '알 수 없는 오류'));
   }
+}
+
+// 붙여넣기 경로: 사용자가 무료 챗봇 앱(ChatGPT/Gemini/Claude 등)에 직접 사진+프롬프트를 보내고
+// 돌아온 JSON 텍스트를 여기에 붙여넣으면, API 직접 호출과 동일한 파싱·변환 로직을 재사용한다.
+function openAiPasteImport(){
+  const promptText = aiImportPrompt();
+  const body = `
+    <div class="settinginfo" style="margin-bottom:10px;">
+      1) 스코어카드 사진을 준비하고, 자주 쓰는 무료 AI 챗봇 앱(ChatGPT·Gemini·Claude 등)을 여세요.<br>
+      2) 아래 "프롬프트 복사"를 눌러 복사한 문구와 사진을 함께 그 앱에 보내세요.<br>
+      3) 돌아온 답변의 JSON 전체를 복사해서 아래 칸에 붙여넣고 "가져오기"를 누르세요.
+    </div>
+    <button type="button" class="btn block" id="ai-copy-prompt">📋 프롬프트 복사</button>
+    <textarea class="field" id="ai-paste-text" rows="8" style="margin-top:10px; resize:vertical;" placeholder="여기에 AI가 돌려준 JSON 결과를 붙여넣으세요"></textarea>
+    <button type="button" class="btn block primary" id="ai-paste-submit" style="margin-top:10px;">가져오기</button>
+  `;
+  const { overlay, close } = openModalSheet('사진으로 가져오기 (붙여넣기)', body);
+  $('#ai-copy-prompt', overlay).addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(promptText);
+      toast('프롬프트를 복사했습니다');
+    } catch (e) {
+      const ta = $('#ai-paste-text', overlay);
+      ta.value = promptText;
+      ta.select();
+      toast('자동 복사에 실패했습니다. 아래 칸에서 직접 복사해주세요');
+    }
+  });
+  $('#ai-paste-submit', overlay).addEventListener('click', () => {
+    const text = $('#ai-paste-text', overlay).value;
+    if (!text.trim()) { toast('붙여넣은 내용이 없습니다'); return; }
+    try {
+      const ai = parseAiJson(text);
+      close();
+      finishAiImport(ai);
+    } catch (err) {
+      toast('붙여넣은 내용을 읽지 못했습니다: ' + (err && err.message ? err.message : '형식 오류'));
+    }
+  });
 }
 
 /* ============================================================================
@@ -1721,8 +1783,11 @@ function openSettings(){
   $('#f-mainuser').value = SETTINGS.mainUser || '';
   $('#f-buddyname').value = SETTINGS.buddyName || '';
   $('#f-ai-enabled').checked = !!SETTINGS.aiImportEnabled;
+  $$('#ai-mode-group input[name="aimode"]').forEach((el) => {
+    el.checked = (el.value === (SETTINGS.aiMode || 'paste'));
+  });
   $('#f-ai-key').value = SETTINGS.aiApiKey || '';
-  updateAiKeyRowVisibility();
+  updateAiModeVisibility();
   renderBackupStatus();
 }
 $('#settings-back').addEventListener('click', goBackInternal);
@@ -1734,17 +1799,29 @@ $('#f-nickname').addEventListener('input', (e) => {
 $('#f-ai-enabled').addEventListener('change', (e) => {
   SETTINGS.aiImportEnabled = e.target.checked;
   saveSettings();
-  updateAiKeyRowVisibility();
+  updateAiModeVisibility();
   updateAiImportButtonVisibility();
+});
+$$('#ai-mode-group input[name="aimode"]').forEach((el) => {
+  el.addEventListener('change', (e) => {
+    if (!e.target.checked) return;
+    SETTINGS.aiMode = e.target.value;
+    saveSettings();
+    updateAiModeVisibility();
+  });
 });
 $('#f-ai-key').addEventListener('input', (e) => {
   SETTINGS.aiApiKey = e.target.value.trim();
   saveSettings();
 });
-function updateAiKeyRowVisibility(){
+function updateAiModeVisibility(){
   const on = !!SETTINGS.aiImportEnabled;
-  $('#row-ai-key').classList.toggle('hidden', !on);
-  $('#info-ai-key').classList.toggle('hidden', !on);
+  $('#row-ai-mode').classList.toggle('hidden', !on);
+  const isApi = on && SETTINGS.aiMode === 'api';
+  const isPaste = on && SETTINGS.aiMode !== 'api';
+  $('#row-ai-key').classList.toggle('hidden', !isApi);
+  $('#info-ai-key').classList.toggle('hidden', !isApi);
+  $('#info-ai-paste').classList.toggle('hidden', !isPaste);
 }
 function updateAiImportButtonVisibility(){
   $('#btn-ai-import').classList.toggle('hidden', !SETTINGS.aiImportEnabled);
