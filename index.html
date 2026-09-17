@@ -707,6 +707,7 @@ let ROUNDS = load(KEY.rounds, []);
 let SETTINGS = load(KEY.settings, { mainUser: '', buddyName: '', nickname: '', aiImportEnabled: false, aiMode: 'paste', aiApiKey: '' });
 let currentRoundId = null;
 let activeModalCloser = null;
+let scorecardTouchedThisSession = false;  // 이번에 스코어카드를 연 뒤 실제로 입력/변경했는지
 
 function saveSettings(){ save(KEY.settings, SETTINGS); }
 function mainUserName(){ return (SETTINGS.mainUser || '').trim() || '나'; }
@@ -845,7 +846,7 @@ function normalizeRound(r){
 }
 ROUNDS.forEach(normalizeRound);
 
-function touch(round){ round.updatedAt = new Date().toISOString(); round.touched = true; saveRounds(); }
+function touch(round){ round.updatedAt = new Date().toISOString(); round.touched = true; scorecardTouchedThisSession = true; saveRounds(); }
 
 // 신규 등록만 열었다가 아무 것도 입력하지 않고 나가면 저장하지 않기 위한 판단 기준.
 // Par가 이제 기본값 4로 채워져 있어(더 이상 "미입력"의 신호가 아님) 필드별 값을 일일이 검사하는
@@ -899,16 +900,19 @@ window.addEventListener('popstate', () => {
 function tryLeaveScorecard(onLeave){
   const r = getRound(currentRoundId);
   if (!r || r.completed) { onLeave(); return; }
-  if (isMeaningful(r)) {
-    openConfirm3('저장하지 않은 라운딩이 있습니다', '임시저장', '저장 안 함', '취소', {
-      onA: () => { touch(r); onLeave(); },
-      onB: () => { ROUNDS = ROUNDS.filter((x) => x.id !== r.id); saveRounds(); onLeave(); },
-      onC: () => {}
-    });
-  } else {
+  if (!isMeaningful(r)) {
     ROUNDS = ROUNDS.filter((x) => x.id !== r.id); saveRounds();
     onLeave();
+    return;
   }
+  // 이전에 저장된 미완료 라운딩을 열어보기만 하고 이번 세션에서 아무 것도 바꾸지 않았다면
+  // 이미 저장된 내용 그대로이므로 저장 여부를 물을 필요 없이 조용히 나감.
+  if (!scorecardTouchedThisSession) { onLeave(); return; }
+  openConfirm3('저장하지 않은 라운딩이 있습니다', '임시저장', '저장 안 함', '취소', {
+    onA: () => { touch(r); onLeave(); },
+    onB: () => { ROUNDS = ROUNDS.filter((x) => x.id !== r.id); saveRounds(); onLeave(); },
+    onC: () => {}
+  });
 }
 
 /* ============================================================================
@@ -1172,6 +1176,7 @@ function openAiPasteImport(){
    ============================================================================ */
 function openScorecard(id){
   currentRoundId = id;
+  scorecardTouchedThisSession = false;
   showView('scorecard');
   renderScorecard();
 }
