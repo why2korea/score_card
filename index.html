@@ -2068,9 +2068,8 @@ function initApp(){
   renderAppTitle();
   updateAiImportButtonVisibility();
 
-  const inc = latestIncomplete();
-  if (inc) { viewStack = ['main', 'scorecard']; openScorecard(inc.id); }
-  else { viewStack = ['main']; showView('main'); }
+  viewStack = ['main'];
+  showView('main');
 
   checkAutoRecovery();
   rotateSessionBackup();
