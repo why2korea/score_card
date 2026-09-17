@@ -468,6 +468,7 @@ tr.rowputt td:not(.stickycol):not(.sumcell):not(.totcell){ background:#f4eefc; }
     <div style="width:44px"></div>
   </div>
   <div class="pad">
+    <input type="text" class="field" id="hist-search" placeholder="🔍 골프장 이름 검색">
     <div class="filterrow" id="hist-filter">
       <button type="button" class="filterchip on" data-filter="all">전체</button>
       <button type="button" class="filterchip" data-filter="domestic">국내</button>
@@ -1474,6 +1475,7 @@ $('#teepicker').addEventListener('click', (e) => { if (e.target.id === 'teepicke
    [6] 히스토리 화면
    ============================================================================ */
 let historyFilter = 'all';
+let historySearch = '';
 
 function openHistory(){ showView('history'); renderHistory(); }
 $('#hist-back').addEventListener('click', goBackInternal);
@@ -1484,6 +1486,10 @@ $$('#hist-filter .filterchip').forEach((btn) => {
     renderHistory();
   });
 });
+$('#hist-search').addEventListener('input', (e) => {
+  historySearch = e.target.value.trim().toLowerCase();
+  renderHistory();
+});
 
 function locTag(r){
   return r.locationType === 'overseas' ? ('해외 · ' + (r.country || '(국가 미입력)')) : '국내';
@@ -1493,11 +1499,14 @@ function renderHistory(){
   let list = ROUNDS.filter((r) => r.completed);
   if (historyFilter === 'domestic') list = list.filter((r) => r.locationType !== 'overseas');
   if (historyFilter === 'overseas') list = list.filter((r) => r.locationType === 'overseas');
+  if (historySearch) list = list.filter((r) => (r.courseName || '').toLowerCase().includes(historySearch));
   list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
   const wrap = $('#hist-list');
   if (!list.length) {
-    wrap.innerHTML = '<div class="emptynote">해당 조건의 완료된 라운딩이 없습니다.</div>';
+    wrap.innerHTML = historySearch
+      ? '<div class="emptynote">검색한 골프장의 라운딩 기록이 없습니다.</div>'
+      : '<div class="emptynote">해당 조건의 완료된 라운딩이 없습니다.</div>';
     return;
   }
   let lastTap = { id: null, t: 0 };
