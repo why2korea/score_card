@@ -641,15 +641,16 @@ function teeArrowSvg(code, size){
   if (!t) return `<svg viewBox="0 0 24 24" width="${size}" height="${size}"><circle cx="12" cy="12" r="4" fill="#c8d6cc"/></svg>`;
   const isCenter = t.angle === 0;
   const flip = t.angle > 0;
-  const shaftD = isCenter ? 'M12 21 L12 6' : 'M12 21 C 6 15 3 10 6 6';
-  const headX = isCenter ? 12 : 6;
-  const headRot = isCenter ? 0 : -25;
+  const shaftD = isCenter ? 'M12 21 L12 6' : 'M12 21 L12 14 C 12 9 10 6.5 3 5';
+  const headX = isCenter ? 12 : 3;
+  const headY = isCenter ? 6 : 5;
+  const headRot = isCenter ? 0 : -65;
   const shaftColor = (t.stroke && t.stroke !== 'none') ? t.stroke : t.fill;
   return `<svg viewBox="0 0 24 24" width="${size}" height="${size}">
     <g${flip ? ' transform="translate(24,0) scale(-1,1)"' : ''}>
       <path d="${shaftD}" fill="none" stroke="${shaftColor}" stroke-width="2.5" stroke-linecap="round"/>
-      <g transform="translate(${headX} 6) rotate(${headRot})">
-        <polygon points="0,-4.5 3.2,2.5 -3.2,2.5" fill="${t.fill}" stroke="${t.stroke}" stroke-width="${t.sw}" stroke-linejoin="round"/>
+      <g transform="translate(${headX} ${headY}) rotate(${headRot})">
+        <polygon points="0,-6.5 4.5,3.2 -4.5,3.2" fill="${t.fill}" stroke="${t.stroke}" stroke-width="${t.sw}" stroke-linejoin="round"/>
       </g>
     </g>
   </svg>`;
