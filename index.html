@@ -634,12 +634,23 @@ const TEE_OPTS = [
 const TEE_MAP = {};
 TEE_OPTS.forEach((t) => { TEE_MAP[t.code] = t; });
 
+// 중앙은 곧은 직선 화살표, 좌/우는 휘어지는 화살표(꼬리 모양 자체로 방향이 한눈에 보이도록)
+// — 왼쪽 모양을 기준으로 그리고 오른쪽은 좌우 반전해서 재사용
 function teeArrowSvg(code, size){
   const t = TEE_MAP[code];
   if (!t) return `<svg viewBox="0 0 24 24" width="${size}" height="${size}"><circle cx="12" cy="12" r="4" fill="#c8d6cc"/></svg>`;
+  const isCenter = t.angle === 0;
+  const flip = t.angle > 0;
+  const shaftD = isCenter ? 'M12 21 L12 6' : 'M12 21 C 6 15 3 10 6 6';
+  const headX = isCenter ? 12 : 6;
+  const headRot = isCenter ? 0 : -25;
+  const shaftColor = (t.stroke && t.stroke !== 'none') ? t.stroke : t.fill;
   return `<svg viewBox="0 0 24 24" width="${size}" height="${size}">
-    <g transform="rotate(${t.angle} 12 12)">
-      <path d="M12 3 L18 16 L12 12.5 L6 16 Z" fill="${t.fill}" stroke="${t.stroke}" stroke-width="${t.sw}" stroke-linejoin="round"/>
+    <g${flip ? ' transform="translate(24,0) scale(-1,1)"' : ''}>
+      <path d="${shaftD}" fill="none" stroke="${shaftColor}" stroke-width="2.5" stroke-linecap="round"/>
+      <g transform="translate(${headX} 6) rotate(${headRot})">
+        <polygon points="0,-4.5 3.2,2.5 -3.2,2.5" fill="${t.fill}" stroke="${t.stroke}" stroke-width="${t.sw}" stroke-linejoin="round"/>
+      </g>
     </g>
   </svg>`;
 }
