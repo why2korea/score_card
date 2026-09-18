@@ -263,6 +263,12 @@ tr.rowputt td:not(.stickycol):not(.sumcell):not(.totcell){ background:#f4eefc; }
 .yearstat-row{ display:grid; grid-template-columns:1fr 1fr 1fr 1fr; text-align:center; padding:7px 4px; border-bottom:1px solid var(--line); font-size:14px; }
 .yearstat-row:last-child{ border-bottom:none; }
 .yearstat-row.yearstat-head{ font-weight:800; color:var(--green-dark); font-size:12px; border-bottom:2px solid var(--line); }
+.teestat-table{ margin-top:6px; }
+.teestat-row{ display:flex; align-items:center; gap:8px; padding:7px 4px; border-bottom:1px solid var(--line); font-size:14px; }
+.teestat-row:last-child{ border-bottom:none; }
+.teestat-icon{ flex:0 0 auto; display:flex; }
+.teestat-name{ flex:1 1 auto; }
+.teestat-cnt{ font-weight:800; color:var(--green-dark); flex:0 0 auto; }
 
 /* ============================================================
    [CSS 9] 설정 화면
@@ -454,6 +460,11 @@ tr.rowputt td:not(.stickycol):not(.sumcell):not(.totcell){ background:#f4eefc; }
     <div class="summarybox">
       <div class="stitle" id="summary-title">스코어 요약</div>
       <div class="sbody" id="summary-body">—</div>
+    </div>
+
+    <div class="summarybox">
+      <div class="stitle">티샷 방향 통계</div>
+      <div class="sbody" id="tee-summary-body">—</div>
     </div>
   </div>
 </div>
@@ -1418,6 +1429,27 @@ function renderSummary(r){
   else { body.textContent = parts.join(', '); body.classList.remove('empty'); }
 }
 
+// 홀 범위(전반/후반) 안에서 입력된 티샷 방향을 코드별로 세어 "라벨 N" 형태 텍스트로 만듦
+function teeDirText(r, range){
+  const counts = {};
+  range.forEach((h) => { const code = r.myTee[h]; if (code && TEE_MAP[code]) counts[code] = (counts[code] || 0) + 1; });
+  const parts = TEE_OPTS.filter((t) => counts[t.code] > 0).map((t) => `${t.label} ${counts[t.code]}`);
+  return parts.length ? parts.join(', ') : '입력 없음';
+}
+
+function renderTeeSummary(r){
+  const body = $('#tee-summary-body');
+  const outText = teeDirText(r, OUT_RANGE);
+  const inText = teeDirText(r, IN_RANGE);
+  if (outText === '입력 없음' && inText === '입력 없음') {
+    body.textContent = '아직 입력된 티샷 방향이 없습니다';
+    body.classList.add('empty');
+    return;
+  }
+  body.classList.remove('empty');
+  body.innerHTML = `전반: ${esc(outText)}<br>후반: ${esc(inText)}`;
+}
+
 function renderScorecard(){
   const r = getRound(currentRoundId);
   if (!r) { popViewStack(); return; }
@@ -1449,6 +1481,7 @@ function renderScorecard(){
   });
 
   renderSummary(r);
+  renderTeeSummary(r);
 }
 
 /* ============================================================================
@@ -1632,6 +1665,10 @@ function renderStats(){
     ? yearRows.map((y) => `<div class="yearstat-row"><span>${esc(y.year)}</span><span>${y.total}</span><span>${y.domestic}</span><span>${y.overseas}</span></div>`).join('')
     : '<div class="emptynote" style="padding:16px 0;">기록이 없습니다</div>';
 
+  const teeDirRowsHtml = teeDirStatsAll(list)
+    .map((t) => `<div class="teestat-row"><span class="teestat-icon">${teeArrowSvg(t.code, 20)}</span><span class="teestat-name">${esc(t.label)}</span><span class="teestat-cnt">${t.count}</span></div>`)
+    .join('');
+
   const minHtml = min
     ? `<div class="statcard lowest clickable" id="stat-min">
         <div class="k">최저타 <span class="clickhint">🖱️</span></div>
@@ -1671,6 +1708,10 @@ function renderStats(){
     <div class="statcard wide" style="margin-top:10px;">
       <div class="k">동반자 방문 횟수 TOP 10</div>
       <div class="companionlist">${companionRowsHtml}</div>
+    </div>
+    <div class="statcard wide" style="margin-top:10px;">
+      <div class="k">티샷 방향 통계</div>
+      <div class="teestat-table">${teeDirRowsHtml}</div>
     </div>`;
 
   if (min) $('#stat-min').addEventListener('click', () => openReadonlyPopup(min.r.id));
@@ -1692,6 +1733,14 @@ function topCompanions(list){
     .map((name) => ({ name, count: counts[name] }))
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
     .slice(0, 10);
+}
+
+function teeDirStatsAll(list){
+  const counts = {};
+  list.forEach((r) => {
+    ALL_RANGE.forEach((h) => { const code = r.myTee[h]; if (code && TEE_MAP[code]) counts[code] = (counts[code] || 0) + 1; });
+  });
+  return TEE_OPTS.map((t) => ({ code: t.code, label: t.label, count: counts[t.code] || 0 }));
 }
 
 function yearlyRoundStats(list){
