@@ -1865,8 +1865,18 @@ function openZoomScorecard(id){
   document.body.appendChild(overlay);
   setViewportZoomable(true);
   let orientationLocked = false;
-  if (screen.orientation && screen.orientation.lock) {
-    screen.orientation.lock('landscape').then(() => { orientationLocked = true; }).catch(() => {});
+  let wentFullscreen = false;
+  // Chrome은 screen.orientation.lock()을 전체화면 상태에서만 허용한다(설치된 앱이라도 예외 없음)
+  // — 그래서 이 팝업만 전체화면으로 먼저 전환한 뒤에 가로 고정을 시도한다.
+  const tryLockLandscape = () => {
+    if (screen.orientation && screen.orientation.lock) {
+      screen.orientation.lock('landscape').then(() => { orientationLocked = true; }).catch(() => {});
+    }
+  };
+  if (overlay.requestFullscreen) {
+    overlay.requestFullscreen().then(() => { wentFullscreen = true; tryLockLandscape(); }).catch(() => { tryLockLandscape(); });
+  } else {
+    tryLockLandscape();
   }
 
   const stage = $('#zoom-stage', overlay);
@@ -1891,6 +1901,9 @@ function openZoomScorecard(id){
     setViewportZoomable(false);
     if (orientationLocked && screen.orientation && screen.orientation.unlock) {
       try { screen.orientation.unlock(); } catch (e) {}
+    }
+    if (wentFullscreen && document.fullscreenElement) {
+      try { document.exitFullscreen(); } catch (e) {}
     }
     if (overlay.parentNode) document.body.removeChild(overlay);
     activeModalCloser = null;
