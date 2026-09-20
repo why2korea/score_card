@@ -1604,11 +1604,12 @@ function renderHistory(){
     const par = parSum(r, ALL_RANGE);
     const putt = puttSum(r.myPutts, ALL_RANGE);
     const scoreTxt = tot.cnt ? tot.sum : '—';
-    const scoreDiffTxt = tot.cnt ? ('S:' + fmtScoreDiff(tot.sum - par.sum)) : '';
+    const scoreDiffTxt = tot.cnt ? ('S:' + fmtScoreDiff(tot.sum - par.sum)) : 'S:-';
     const puttTxt = 'P:' + (putt.cnt ? putt.sum : '-');
+    const subTxt = `${scoreDiffTxt}, ${puttTxt}`;
     return `<div class="histrow" data-id="${r.id}">
       <div class="d1"><div class="date">${esc(fmtDateTime(r))}<span class="loctag">${esc(locTag(r))}</span></div><div class="course">${esc(r.courseName || '(이름없음)')}</div></div>
-      <div class="score" data-open="${r.id}">${scoreTxt}<span class="d">${esc(scoreDiffTxt)}</span><span class="d">${esc(puttTxt)}</span></div>
+      <div class="score" data-open="${r.id}">${scoreTxt}<span class="d">${esc(subTxt)}</span></div>
       <button type="button" class="delbtn" data-del="${r.id}" aria-label="삭제">🗑</button>
     </div>`;
   }).join('');
