@@ -350,6 +350,29 @@ tr.rowputt td:not(.stickycol):not(.sumcell):not(.totcell){ background:#f4eefc; }
 @keyframes ai-spin{ to{ transform:rotate(360deg); } }
 .ai-loading-msg{ font-size:14px; font-weight:700; color:var(--text); line-height:1.5; }
 .confirm-msg{ font-size:15px; font-weight:700; text-align:center; margin-bottom:6px; line-height:1.5; }
+
+/* 완료된 스코어 확대 보기(캡처용) */
+.scoretools{ display:flex; justify-content:flex-end; margin:-4px 0 -4px; }
+.zoom-overlay{
+  position:fixed; inset:0; background:var(--bg); z-index:95;
+  display:flex; flex-direction:column;
+}
+.zoom-head{
+  flex:0 0 auto; padding:calc(6px + env(safe-area-inset-top)) 40px 2px 10px;
+  font-size:12px; font-weight:700; color:var(--sub);
+}
+.zoom-stage{ flex:1 1 auto; position:relative; overflow:hidden; }
+.zoom-stage .tablewrap{
+  position:absolute; top:0; left:0; overflow:visible; border-radius:0; border:none;
+  transform-origin:top left;
+}
+.zoom-close{
+  position:fixed; top:calc(6px + env(safe-area-inset-top)); right:6px; z-index:2;
+  width:28px; height:28px; border-radius:8px; padding:0;
+  background:rgba(19,35,24,0.35); color:#fff; border:none;
+  font-size:15px; line-height:1; display:flex; align-items:center; justify-content:center;
+  cursor:pointer;
+}
 </style>
 </head>
 <body>
@@ -456,6 +479,9 @@ tr.rowputt td:not(.stickycol):not(.sumcell):not(.totcell){ background:#f4eefc; }
       </div>
     </div>
 
+    <div class="scoretools hidden" id="sc-zoom-row">
+      <button type="button" class="btn small" id="btn-zoom-score">🔍 스코어 확대 보기</button>
+    </div>
     <div class="tablewrap" id="tablewrap"></div>
 
     <div class="summarybox">
@@ -1229,6 +1255,10 @@ $('#sc-done').addEventListener('click', () => {
   toast(r.completed ? '라운딩을 완료 처리했습니다' : '완료를 취소했습니다 (미완료로 전환)');
   renderScorecard();
 });
+$('#btn-zoom-score').addEventListener('click', () => {
+  const r = getRound(currentRoundId);
+  if (r) openZoomScorecard(r.id);
+});
 
 function bindTopFields(r){
   $('#f-date').value = r.date || '';
@@ -1465,6 +1495,7 @@ function renderScorecard(){
   $('.title', $('#view-scorecard')).textContent = r.courseName ? r.courseName : '스코어카드';
   $('#sc-done').classList.toggle('done', !!r.completed);
   $('#sc-done').textContent = r.completed ? '✓ 완료' : '○ 완료';
+  $('#sc-zoom-row').classList.toggle('hidden', !r.completed);
 
   bindTopFields(r);
 
@@ -1571,11 +1602,13 @@ function renderHistory(){
   wrap.innerHTML = list.map((r) => {
     const tot = strokesSum(r, r.myScores, ALL_RANGE);
     const par = parSum(r, ALL_RANGE);
+    const putt = puttSum(r.myPutts, ALL_RANGE);
     const scoreTxt = tot.cnt ? tot.sum : '—';
-    const diffTxt = tot.cnt ? fmtScoreDiff(tot.sum - par.sum) : '';
+    const scoreDiffTxt = tot.cnt ? ('S:' + fmtScoreDiff(tot.sum - par.sum)) : '';
+    const puttTxt = 'P:' + (putt.cnt ? putt.sum : '-');
     return `<div class="histrow" data-id="${r.id}">
       <div class="d1"><div class="date">${esc(fmtDateTime(r))}<span class="loctag">${esc(locTag(r))}</span></div><div class="course">${esc(r.courseName || '(이름없음)')}</div></div>
-      <div class="score" data-open="${r.id}">${scoreTxt}<span class="d">${diffTxt}</span></div>
+      <div class="score" data-open="${r.id}">${scoreTxt}<span class="d">${esc(scoreDiffTxt)}</span><span class="d">${esc(puttTxt)}</span></div>
       <button type="button" class="delbtn" data-del="${r.id}" aria-label="삭제">🗑</button>
     </div>`;
   }).join('');
@@ -1798,6 +1831,53 @@ function openReadonlyPopup(id){
     <div class="tablewrap">${renderTableReadonly(r)}</div>
   `;
   openModalSheet(r.courseName || '스코어카드', bodyHtml);
+}
+
+// 완료된 라운드의 스코어카드를 화면(가로 모드 기준)에 꽉 차게 확대 표시 — 스크린샷 캡처용이라
+// 제목표시줄/버튼 등 불필요한 UI 없이 표만 보이게 하고, 닫기는 우측 상단의 작은 × 버튼 하나만 둔다.
+function openZoomScorecard(id){
+  const r = getRound(id);
+  if (!r) return;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'zoom-overlay';
+  overlay.innerHTML = `
+    <button type="button" class="zoom-close" id="zoom-close" aria-label="닫기">×</button>
+    <div class="zoom-head">${esc(r.courseName || '')}${r.courseName ? ' · ' : ''}${esc(fmtDateTime(r))}</div>
+    <div class="zoom-stage" id="zoom-stage">
+      <div class="tablewrap" id="zoom-tablewrap">${renderTableReadonly(r)}</div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const stage = $('#zoom-stage', overlay);
+  const wrap = $('#zoom-tablewrap', overlay);
+  // 화면(세로/가로 전환 포함)에 표 전체가 빈틈없이, 넘치지도 않게 들어가도록 매번 다시 계산해서
+  // scale()로 맞춘다 — 열이 많아 표 자체 크기를 유동적으로 바꾸기 어렵기 때문.
+  function fit(){
+    wrap.style.transform = 'scale(1)';
+    const naturalW = wrap.scrollWidth;
+    const naturalH = wrap.scrollHeight;
+    const availW = stage.clientWidth;
+    const availH = stage.clientHeight;
+    if (!naturalW || !naturalH || !availW || !availH) return;
+    const scale = Math.min(availW / naturalW, availH / naturalH);
+    wrap.style.transform = `scale(${scale})`;
+    wrap.style.left = Math.max(0, (availW - naturalW * scale) / 2) + 'px';
+    wrap.style.top = Math.max(0, (availH - naturalH * scale) / 2) + 'px';
+  }
+  const close = () => {
+    window.removeEventListener('resize', fit);
+    window.removeEventListener('orientationchange', fit);
+    if (overlay.parentNode) document.body.removeChild(overlay);
+    activeModalCloser = null;
+  };
+  $('#zoom-close', overlay).onclick = close;
+  window.addEventListener('resize', fit);
+  window.addEventListener('orientationchange', fit);
+  activeModalCloser = close;
+  requestAnimationFrame(fit);
+  setTimeout(fit, 300); // 가로 회전 애니메이션이 끝난 뒤 실제 뷰포트 크기로 한 번 더 보정
 }
 
 const BUDDY_LABEL = { albatross: '알바트로스', eagle: '이글', birdie: '버디', holeinone: '홀인원' };
