@@ -221,6 +221,22 @@ tr.rowputt td:not(.stickycol):not(.sumcell):not(.totcell){ background:#f4eefc; }
   color:var(--sub); font-size:13px; font-weight:700; cursor:pointer;
 }
 .filterchip.on{ background:var(--green); color:#fff; border-color:var(--green); }
+.yearrow{ display:flex; flex-wrap:wrap; gap:8px; }
+.yearrow:empty{ display:none; }
+.yearchip{
+  display:inline-flex; align-items:center; gap:5px; min-height:40px; padding:0 16px;
+  border-radius:999px; border:1.5px solid var(--line); background:var(--card); color:var(--green-dark);
+  font-size:16px; font-weight:800; font-family:inherit; cursor:pointer;
+  box-shadow:0 1px 2px rgba(0,0,0,.06); transition:transform .08s;
+}
+.yearchip .n{ font-size:11px; font-weight:700; color:var(--sub); }
+.yearchip:active{ transform:scale(0.95); }
+.yearchip.on{
+  background:linear-gradient(135deg, var(--green), var(--green-dark)); color:#fff; border-color:var(--green-dark);
+  box-shadow:0 2px 6px rgba(31,107,58,.35);
+}
+.yearchip.on .n{ color:rgba(255,255,255,.85); }
+.histcount{ font-size:12px; color:var(--sub); font-weight:700; padding:0 2px; }
 .histrow{
   display:flex; align-items:center; gap:10px; background:var(--card); border:1px solid var(--line);
   border-radius:12px; padding:12px 14px; cursor:pointer;
@@ -506,12 +522,14 @@ tr.rowputt td:not(.stickycol):not(.sumcell):not(.totcell){ background:#f4eefc; }
     <div style="width:44px"></div>
   </div>
   <div class="pad">
-    <input type="text" class="field" id="hist-search" placeholder="🔍 골프장 이름 검색">
+    <input type="search" class="field" id="hist-search" placeholder="🔍 골프장·동반자·캐디·날짜·한줄평 검색" enterkeyhint="search" autocomplete="off">
+    <div class="yearrow" id="hist-years"></div>
     <div class="filterrow" id="hist-filter">
       <button type="button" class="filterchip on" data-filter="all">전체</button>
       <button type="button" class="filterchip" data-filter="domestic">국내</button>
       <button type="button" class="filterchip" data-filter="overseas">해외</button>
     </div>
+    <div class="histcount hidden" id="hist-count"></div>
     <div id="hist-list"></div>
   </div>
 </div>
@@ -1564,9 +1582,40 @@ $('#teepicker').addEventListener('click', (e) => { if (e.target.id === 'teepicke
    [6] 히스토리 화면
    ============================================================================ */
 let historyFilter = 'all';
-let historySearch = '';
+let historySearch = '';   // 공백으로 구분한 검색어(소문자). 모든 단어가 어딘가에 들어 있어야 통과(AND)
+let historyYear = '';     // '' = 전체 연도, 'YYYY' = 그 해만
 
 function openHistory(){ showView('history'); renderHistory(); }
+
+function roundYear(r){ return String(r.date || '').slice(0, 4); }
+
+// 검색 대상: 골프장, 전/후반 코스명, 동반자, 캐디, 한줄평, 국가, 국내/해외/조인/일반, 날짜(2024-03-09 / 2024년 3월 9일)
+function historyHaystack(r){
+  const m = String(r.date || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const dateKo = m ? `${m[1]}년 ${+m[2]}월 ${+m[3]}일` : '';
+  return [
+    r.courseName, r.frontName, r.backName, (r.companions || []).join(' '), r.caddie, r.comment, r.country,
+    r.locationType === 'overseas' ? '해외' : '국내', r.joinType === 'join' ? '조인' : '일반',
+    r.date, dateKo, validTime(r.time) ? r.time : ''
+  ].join(' ').toLowerCase();
+}
+
+function renderYearChips(completed){
+  const counts = {};
+  completed.forEach((r) => { const y = roundYear(r); if (/^\d{4}$/.test(y)) counts[y] = (counts[y] || 0) + 1; });
+  const years = Object.keys(counts).sort((a, b) => b.localeCompare(a));
+  if (historyYear && !counts[historyYear]) historyYear = '';   // 그 해 기록이 다 삭제됐으면 필터 해제
+  const wrap = $('#hist-years');
+  wrap.innerHTML = years.map((y) =>
+    `<button type="button" class="yearchip${y === historyYear ? ' on' : ''}" data-year="${y}" aria-pressed="${y === historyYear}">${y}<span class="n">${counts[y]}</span></button>`
+  ).join('');
+  $$('.yearchip', wrap).forEach((btn) => {
+    btn.addEventListener('click', () => {
+      historyYear = (historyYear === btn.dataset.year) ? '' : btn.dataset.year;   // 다시 누르면 해제
+      renderHistory();
+    });
+  });
+}
 $('#hist-back').addEventListener('click', goBackInternal);
 $$('#hist-filter .filterchip').forEach((btn) => {
   btn.addEventListener('click', () => {
@@ -1576,7 +1625,7 @@ $$('#hist-filter .filterchip').forEach((btn) => {
   });
 });
 $('#hist-search').addEventListener('input', (e) => {
-  historySearch = e.target.value.trim().toLowerCase();
+  historySearch = e.target.value.trim().toLowerCase().replace(/\s+/g, ' ');
   renderHistory();
 });
 
@@ -1585,17 +1634,27 @@ function locTag(r){
 }
 
 function renderHistory(){
-  let list = ROUNDS.filter((r) => r.completed);
+  const completed = ROUNDS.filter((r) => r.completed);
+  renderYearChips(completed);
+  let list = completed;
+  if (historyYear) list = list.filter((r) => roundYear(r) === historyYear);
   if (historyFilter === 'domestic') list = list.filter((r) => r.locationType !== 'overseas');
   if (historyFilter === 'overseas') list = list.filter((r) => r.locationType === 'overseas');
-  if (historySearch) list = list.filter((r) => (r.courseName || '').toLowerCase().includes(historySearch));
-  list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  if (historySearch) {
+    const terms = historySearch.split(' ');
+    list = list.filter((r) => { const hay = historyHaystack(r); return terms.every((t) => hay.includes(t)); });
+  }
+  list.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.time || '').localeCompare(a.time || ''));
 
   const wrap = $('#hist-list');
+  const countEl = $('#hist-count');
+  const filtering = !!(historySearch || historyYear || historyFilter !== 'all');
+  countEl.classList.toggle('hidden', !filtering);
+  countEl.textContent = `${list.length}건`;
   if (!list.length) {
-    wrap.innerHTML = historySearch
-      ? '<div class="emptynote">검색한 골프장의 라운딩 기록이 없습니다.</div>'
-      : '<div class="emptynote">해당 조건의 완료된 라운딩이 없습니다.</div>';
+    wrap.innerHTML = filtering
+      ? '<div class="emptynote">조건에 맞는 라운딩 기록이 없습니다.<br>골프장·동반자·캐디·날짜·한줄평으로 찾을 수 있어요.</div>'
+      : '<div class="emptynote">완료된 라운딩이 없습니다.</div>';
     return;
   }
   let lastTap = { id: null, t: 0 };
