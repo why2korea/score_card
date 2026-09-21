@@ -1427,9 +1427,9 @@ function holeNumTh(h){
 // 읽기전용 표(히스토리 팝업용) — 입력요소 없이 값만 표시
 function renderTableReadonly(r){
   let html = '<table class="scoretable"><tbody>';
-  html += '<tr class="rowhead"><th class="stickycol">홀</th>';
+  html += `<tr class="rowhead"><th class="stickycol">${esc(r.frontName || '홀')}</th>`;
   ALL_RANGE.forEach((h) => {
-    html += h === 9 ? '<th>합</th>' + holeNumTh(h) : holeNumTh(h);
+    html += h === 9 ? `<th>${esc(r.backName || '합')}</th>` + holeNumTh(h) : holeNumTh(h);
   });
   html += '<th>합</th><th>총계</th></tr>';
 
