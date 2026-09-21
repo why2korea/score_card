@@ -355,16 +355,16 @@ tr.rowputt td:not(.stickycol):not(.sumcell):not(.totcell){ background:#f4eefc; }
 .scoretools{ display:flex; justify-content:flex-end; margin:-4px 0 -4px; }
 .zoom-overlay{
   position:fixed; inset:0; background:var(--bg); z-index:95;
-  display:flex; flex-direction:column;
 }
-.zoom-head{
-  flex:0 0 auto; padding:calc(6px + env(safe-area-inset-top)) 40px 2px 10px;
-  font-size:12px; font-weight:700; color:var(--sub);
-}
-.zoom-stage{ flex:1 1 auto; position:relative; overflow:hidden; }
+.zoom-stage{ position:absolute; inset:0; overflow:hidden; }
 .zoom-stage .tablewrap{
   position:absolute; top:0; left:0; overflow:visible; border-radius:0; border:none;
   transform-origin:top left;
+}
+/* 골프장/일시 정보 — 표 좌측 위 여백에 바싹 붙여서 표와 한 번에 캡처되게 함(JS가 위치 계산) */
+.zoom-head{
+  position:absolute; z-index:1; font-size:12px; font-weight:700; color:var(--sub);
+  white-space:nowrap; pointer-events:none;
 }
 .zoom-close{
   position:fixed; top:calc(6px + env(safe-area-inset-top)); right:6px; z-index:2;
@@ -1857,8 +1857,8 @@ function openZoomScorecard(id){
   overlay.className = 'zoom-overlay';
   overlay.innerHTML = `
     <button type="button" class="zoom-close" id="zoom-close" aria-label="닫기">×</button>
-    <div class="zoom-head">${esc(r.courseName || '')}${r.courseName ? ' · ' : ''}${esc(fmtDateTime(r))}</div>
     <div class="zoom-stage" id="zoom-stage">
+      <div class="zoom-head" id="zoom-head">${esc(r.courseName || '')}${r.courseName ? ' · ' : ''}${esc(fmtDateTime(r))}</div>
       <div class="tablewrap" id="zoom-tablewrap">${renderTableReadonly(r)}</div>
     </div>
   `;
@@ -1867,22 +1867,26 @@ function openZoomScorecard(id){
   let orientationLocked = false;
   let wentFullscreen = false;
   // Chrome은 screen.orientation.lock()을 전체화면 상태에서만 허용한다(설치된 앱이라도 예외 없음)
-  // — 그래서 이 팝업만 전체화면으로 먼저 전환한 뒤에 가로 고정을 시도한다.
+  // — 그래서 이 팝업만 전체화면으로 먼저 전환한 뒤에 가로 고정을 시도한다. navigationUI:'hide'는
+  // 전체화면 진입 시 브라우저가 하단에 띄우는 "뒤로가기/제스처 안내" 시스템 UI를 최대한 숨겨달라는
+  // 요청 — 완전히 없애는 건 브라우저 보안 정책상 페이지 쪽에서 불가능하지만 이 정도가 최선.
   const tryLockLandscape = () => {
     if (screen.orientation && screen.orientation.lock) {
       screen.orientation.lock('landscape').then(() => { orientationLocked = true; }).catch(() => {});
     }
   };
   if (overlay.requestFullscreen) {
-    overlay.requestFullscreen().then(() => { wentFullscreen = true; tryLockLandscape(); }).catch(() => { tryLockLandscape(); });
+    overlay.requestFullscreen({ navigationUI: 'hide' }).then(() => { wentFullscreen = true; tryLockLandscape(); }).catch(() => { tryLockLandscape(); });
   } else {
     tryLockLandscape();
   }
 
   const stage = $('#zoom-stage', overlay);
   const wrap = $('#zoom-tablewrap', overlay);
+  const head = $('#zoom-head', overlay);
   // 화면(세로/가로 전환 포함)에 표 전체가 빈틈없이, 넘치지도 않게 들어가도록 매번 다시 계산해서
-  // scale()로 맞춘다 — 열이 많아 표 자체 크기를 유동적으로 바꾸기 어렵기 때문.
+  // scale()로 맞춘다 — 열이 많아 표 자체 크기를 유동적으로 바꾸기 어렵기 때문. 골프장/일시 정보는
+  // 화면 맨 위가 아니라 표의 실제 좌측 위 여백에 바싹 붙여서, 표와 함께 한 화면에 캡처되게 한다.
   function fit(){
     wrap.style.transform = 'scale(1)';
     const naturalW = wrap.scrollWidth;
@@ -1891,9 +1895,13 @@ function openZoomScorecard(id){
     const availH = stage.clientHeight;
     if (!naturalW || !naturalH || !availW || !availH) return;
     const scale = Math.min(availW / naturalW, availH / naturalH);
+    const left = Math.max(0, (availW - naturalW * scale) / 2);
+    const top = Math.max(0, (availH - naturalH * scale) / 2);
     wrap.style.transform = `scale(${scale})`;
-    wrap.style.left = Math.max(0, (availW - naturalW * scale) / 2) + 'px';
-    wrap.style.top = Math.max(0, (availH - naturalH * scale) / 2) + 'px';
+    wrap.style.left = left + 'px';
+    wrap.style.top = top + 'px';
+    head.style.left = left + 'px';
+    head.style.top = Math.max(2, top - head.offsetHeight - 2) + 'px';
   }
   const close = () => {
     window.removeEventListener('resize', fit);
