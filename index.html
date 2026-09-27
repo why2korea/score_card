@@ -1254,8 +1254,10 @@ $('#sc-draft').addEventListener('click', () => {
   const r = getRound(currentRoundId);
   if (!r) return;
   touch(r);
+  // 라운딩 중 한 홀씩 입력하며 수시로 누르는 버튼이라 화면을 벗어나지 않음(나갈 때는 ← 버튼/뒤로가기).
+  // 방금 저장했으니 "이번 세션에 바뀐 것 없음"으로 되돌려, 이후 추가 입력 없이 나가면 저장 여부를 묻지 않게 함.
+  scorecardTouchedThisSession = false;
   toast('임시저장 되었습니다');
-  popViewStack();
 });
 $('#sc-done').addEventListener('click', () => {
   const r = getRound(currentRoundId);
