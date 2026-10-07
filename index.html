@@ -252,6 +252,8 @@ tr.rowputt td:not(.stickycol):not(.sumcell):not(.totcell){ background:#f4eefc; }
   background:transparent; border:1px solid var(--line); color:var(--danger); font-size:17px; cursor:pointer;
 }
 .delbtn:active{ transform:scale(0.94); background:#fbeae8; }
+.pickrow{ margin-bottom:8px; }
+.pickrow .pickcourse{ font-size:12px; font-weight:700; color:var(--sub); }
 .copybtn{
   width:40px; height:40px; border-radius:10px; flex:0 0 auto;
   background:transparent; border:1px solid var(--line); font-size:17px; cursor:pointer;
@@ -421,7 +423,7 @@ tr.rowputt td:not(.stickycol):not(.sumcell):not(.totcell){ background:#f4eefc; }
       </button>
       <button class="menubtn" id="btn-resume">
         <span class="emoji">⏳</span>
-        <span><span>미완료 라운딩</span><span class="sub">입력 중인 스코어카드 이어하기</span></span>
+        <span><span>미완료 라운딩</span><span class="sub" id="resume-sub">입력 중인 스코어카드 이어하기</span></span>
       </button>
       <button class="menubtn" id="btn-history">
         <span class="emoji">📜</span>
@@ -940,6 +942,7 @@ function isMeaningful(r){
 function showView(name){
   $$('.view').forEach((v) => v.classList.add('hidden'));
   $('#view-' + name).classList.remove('hidden');
+  if (name === 'main') renderResumeCount();
 }
 
 let viewStack = ['main'];
@@ -1023,20 +1026,51 @@ $('#ai-import-file').addEventListener('change', (e) => {
   const file = e.target.files && e.target.files[0];
   if (file) handleAiImportFile(file);
 });
+// 미완료 라운딩이 여러 개면 목록에서 골라 연다(예전엔 가장 최근 1건만 열려서 나머지가 안 보였음)
 $('#btn-resume').addEventListener('click', () => {
-  const r = latestIncomplete();
-  if (!r) { toast('미완료 라운딩이 없습니다'); return; }
-  goTo('scorecard', () => openScorecard(r.id));
+  const list = incompleteRounds();
+  if (!list.length) { toast('미완료 라운딩이 없습니다'); return; }
+  if (list.length === 1) { goTo('scorecard', () => openScorecard(list[0].id)); return; }
+  openIncompletePicker(list);
 });
 $('#btn-history').addEventListener('click', () => goTo('history', openHistory));
 $('#btn-stats').addEventListener('click', () => goTo('stats', openStats));
 $('#btn-settings').addEventListener('click', () => goTo('settings', openSettings));
 
-function latestIncomplete(){
+function incompleteRounds(){
   const list = ROUNDS.filter((r) => !r.completed);
-  if (!list.length) return null;
   list.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
-  return list[0];
+  return list;
+}
+function renderResumeCount(){
+  const n = ROUNDS.filter((r) => !r.completed).length;
+  $('#resume-sub').textContent = n > 1 ? `입력 중인 스코어카드 이어하기 (${n}개)` : '입력 중인 스코어카드 이어하기';
+}
+function fmtUpdatedAt(iso){
+  const d = new Date(iso || '');
+  if (isNaN(d)) return '';
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function openIncompletePicker(list){
+  const bodyHtml = list.map((r) => {
+    const tot = strokesSum(r, r.myScores, ALL_RANGE);
+    const sub = [r.frontName, r.backName].filter(Boolean).join('·');
+    return `<div class="histrow pickrow" data-pick="${r.id}">
+      <div class="d1"><div class="date">${esc(fmtDateTime(r))}<span class="loctag">${esc(locTag(r))}</span></div>
+        <div class="course">${esc(r.courseName || '(이름없음)')}${sub ? ` <span class="pickcourse">${esc(sub)}</span>` : ''}</div>
+        <div class="date">마지막 수정 ${esc(fmtUpdatedAt(r.updatedAt))}</div></div>
+      <div class="score">${tot.cnt ? tot.sum : '—'}</div>
+    </div>`;
+  }).join('');
+  const { overlay, close } = openModalSheet(`미완료 라운딩 ${list.length}개 — 이어서 입력할 라운딩 선택`, bodyHtml);
+  $$('.pickrow', overlay).forEach((row) => {
+    row.addEventListener('click', () => {
+      const id = row.dataset.pick;
+      close();
+      if (getRound(id)) goTo('scorecard', () => openScorecard(id));
+    });
+  });
 }
 
 /* ============================================================================
