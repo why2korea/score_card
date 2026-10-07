@@ -1033,11 +1033,10 @@ $('#ai-import-file').addEventListener('change', (e) => {
   const file = e.target.files && e.target.files[0];
   if (file) handleAiImportFile(file);
 });
-// 미완료 라운딩이 여러 개면 목록에서 골라 연다(예전엔 가장 최근 1건만 열려서 나머지가 안 보였음)
+// 미완료 라운딩은 1개뿐이어도 항상 목록에서 골라 연다(목록에서 바로 삭제할 수도 있게)
 $('#btn-resume').addEventListener('click', () => {
   const list = incompleteRounds();
   if (!list.length) { toast('미완료 라운딩이 없습니다'); return; }
-  if (list.length === 1) { goTo('scorecard', () => openScorecard(list[0].id)); return; }
   openIncompletePicker(list);
 });
 $('#btn-history').addEventListener('click', () => goTo('history', openHistory));
