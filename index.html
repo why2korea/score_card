@@ -379,6 +379,7 @@ tr.rowputt td:not(.stickycol):not(.sumcell):not(.totcell){ background:#f4eefc; }
 
 /* 완료된 스코어 확대 보기(캡처용) */
 .scoretools{ display:flex; justify-content:flex-end; margin:-4px 0 -4px; }
+.btn.delround{ color:var(--danger); }
 .pasterow{ display:flex; margin:0 0 -4px; }
 .pasterow .btn{ width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .zoom-overlay{
@@ -455,6 +456,9 @@ tr.rowputt td:not(.stickycol):not(.sumcell):not(.totcell){ background:#f4eefc; }
     <div class="iconbtn wide" id="sc-done">○ 완료</div>
   </div>
   <div class="pad">
+    <div class="scoretools hidden" id="sc-del-row">
+      <button type="button" class="btn small delround" id="btn-del-round">🗑 이 라운딩 삭제</button>
+    </div>
     <div class="topcard">
       <div class="radiorow">
         <div class="radioblock">
@@ -1033,10 +1037,12 @@ $('#ai-import-file').addEventListener('change', (e) => {
   const file = e.target.files && e.target.files[0];
   if (file) handleAiImportFile(file);
 });
-// 미완료 라운딩은 1개뿐이어도 항상 목록에서 골라 연다(목록에서 바로 삭제할 수도 있게)
+// 미완료 라운딩이 여러 개면 목록에서 골라 연다(예전엔 가장 최근 1건만 열려서 나머지가 안 보였음).
+// 1개뿐이면 라운딩 중일 가능성이 크므로 목록 없이 바로 연다(삭제는 스코어카드 화면의 🗑 버튼으로).
 $('#btn-resume').addEventListener('click', () => {
   const list = incompleteRounds();
   if (!list.length) { toast('미완료 라운딩이 없습니다'); return; }
+  if (list.length === 1) { goTo('scorecard', () => openScorecard(list[0].id)); return; }
   openIncompletePicker(list);
 });
 $('#btn-history').addEventListener('click', () => goTo('history', openHistory));
@@ -1343,6 +1349,17 @@ $('#sc-done').addEventListener('click', () => {
   toast(r.completed ? '라운딩을 완료 처리했습니다' : '완료를 취소했습니다 (미완료로 전환)');
   renderScorecard();
 });
+// 미완료 라운딩 삭제(완료된 라운딩은 히스토리의 🗑로만 삭제) — 확인창을 거친 뒤에만 삭제하고 이전 화면으로 나감
+$('#btn-del-round').addEventListener('click', () => {
+  const r = getRound(currentRoundId);
+  if (!r || r.completed) return;
+  const ok = confirm(`미완료 라운딩 "${r.courseName || '(이름없음)'}" (${fmtDateTime(r)})을 삭제할까요?\n삭제하면 되돌릴 수 없습니다.`);
+  if (!ok) return;
+  ROUNDS = ROUNDS.filter((x) => x.id !== r.id);
+  saveRounds();
+  toast('삭제했습니다');
+  popViewStack();
+});
 $('#btn-zoom-score').addEventListener('click', () => {
   const r = getRound(currentRoundId);
   if (r) openZoomScorecard(r.id);
@@ -1584,6 +1601,7 @@ function renderScorecard(){
   $('#sc-done').classList.toggle('done', !!r.completed);
   $('#sc-done').textContent = r.completed ? '✓ 완료' : '○ 완료';
   $('#sc-zoom-row').classList.toggle('hidden', !r.completed);
+  $('#sc-del-row').classList.toggle('hidden', !!r.completed);
   renderPasteButton(r);
 
   bindTopFields(r);
