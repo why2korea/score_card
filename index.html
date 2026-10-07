@@ -1621,7 +1621,7 @@ function copyCourseInfo(r){
   };
   while (clip.pars.length < 18) clip.pars.push(null);
   if (!save(KEY.courseClip, clip)) { toast('복사하지 못했습니다'); return; }
-  toast(`"${clip.courseName || '(이름없음)'}" 코스·홀 정보를 복사했습니다 — 미완료 라운딩에서 붙여넣기`);
+  toast(`"${clip.courseName || '(이름없음)'}" 코스·홀 정보를 복사했습니다 — 신규 등록 또는 미완료 라운딩에서 붙여넣기`);
 }
 function loadCourseClip(){
   const c = load(KEY.courseClip, null);
