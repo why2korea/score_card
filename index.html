@@ -1061,6 +1061,7 @@ function openIncompletePicker(list){
         <div class="course">${esc(r.courseName || '(이름없음)')}${sub ? ` <span class="pickcourse">${esc(sub)}</span>` : ''}</div>
         <div class="date">마지막 수정 ${esc(fmtUpdatedAt(r.updatedAt))}</div></div>
       <div class="score">${tot.cnt ? tot.sum : '—'}</div>
+      <button type="button" class="delbtn" data-del="${r.id}" aria-label="삭제">🗑</button>
     </div>`;
   }).join('');
   const { overlay, close } = openModalSheet(`미완료 라운딩 ${list.length}개 — 이어서 입력할 라운딩 선택`, bodyHtml);
@@ -1069,6 +1070,22 @@ function openIncompletePicker(list){
       const id = row.dataset.pick;
       close();
       if (getRound(id)) goTo('scorecard', () => openScorecard(id));
+    });
+  });
+  $$('.delbtn', overlay).forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const r = getRound(btn.dataset.del);
+      if (!r || r.completed) return;
+      const ok = confirm(`미완료 라운딩 "${r.courseName || '(이름없음)'}" (${fmtDateTime(r)})을 삭제할까요?\n삭제하면 되돌릴 수 없습니다.`);
+      if (!ok) return;
+      ROUNDS = ROUNDS.filter((x) => x.id !== r.id);
+      saveRounds();
+      toast('삭제했습니다');
+      close();
+      renderResumeCount();
+      const rest = incompleteRounds();
+      if (rest.length) openIncompletePicker(rest);   // 1개만 남아도 목록을 유지해 남은 것을 확인할 수 있게 함
     });
   });
 }
