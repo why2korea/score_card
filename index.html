@@ -252,6 +252,11 @@ tr.rowputt td:not(.stickycol):not(.sumcell):not(.totcell){ background:#f4eefc; }
   background:transparent; border:1px solid var(--line); color:var(--danger); font-size:17px; cursor:pointer;
 }
 .delbtn:active{ transform:scale(0.94); background:#fbeae8; }
+.copybtn{
+  width:40px; height:40px; border-radius:10px; flex:0 0 auto;
+  background:transparent; border:1px solid var(--line); font-size:17px; cursor:pointer;
+}
+.copybtn:active{ transform:scale(0.94); background:#e3f0e6; }
 .emptynote{ text-align:center; color:var(--sub); padding:40px 20px; font-size:14px; line-height:1.6; }
 
 /* ============================================================
@@ -365,10 +370,12 @@ tr.rowputt td:not(.stickycol):not(.sumcell):not(.totcell){ background:#f4eefc; }
 }
 @keyframes ai-spin{ to{ transform:rotate(360deg); } }
 .ai-loading-msg{ font-size:14px; font-weight:700; color:var(--text); line-height:1.5; }
-.confirm-msg{ font-size:15px; font-weight:700; text-align:center; margin-bottom:6px; line-height:1.5; }
+.confirm-msg{ font-size:15px; font-weight:700; text-align:center; margin-bottom:6px; line-height:1.5; white-space:pre-line; }
 
 /* 완료된 스코어 확대 보기(캡처용) */
 .scoretools{ display:flex; justify-content:flex-end; margin:-4px 0 -4px; }
+.pasterow{ display:flex; margin:0 0 -4px; }
+.pasterow .btn{ width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .zoom-overlay{
   position:fixed; inset:0; background:var(--bg); z-index:95;
 }
@@ -497,6 +504,9 @@ tr.rowputt td:not(.stickycol):not(.sumcell):not(.totcell){ background:#f4eefc; }
 
     <div class="scoretools hidden" id="sc-zoom-row">
       <button type="button" class="btn small" id="btn-zoom-score">🔍 스코어 확대 보기</button>
+    </div>
+    <div class="pasterow hidden" id="sc-paste-row">
+      <button type="button" class="btn small" id="btn-paste-course"></button>
     </div>
     <div class="tablewrap" id="tablewrap"></div>
 
@@ -666,7 +676,8 @@ const KEY = {
   settings:          'why2korea_scorecard.settings',
   autobackup:        'why2korea_scorecard.rounds.autobackup',        // 엑셀 복원 직전 안전 백업
   sessionBackupCurr: 'why2korea_scorecard.rounds.sessionbackup.curr', // 이번 세션 시작 시점 자동 백업
-  sessionBackupPrev: 'why2korea_scorecard.rounds.sessionbackup.prev'  // 그 이전 세션의 자동 백업
+  sessionBackupPrev: 'why2korea_scorecard.rounds.sessionbackup.prev', // 그 이전 세션의 자동 백업
+  courseClip:        'why2korea_scorecard.courseclip'                 // 히스토리에서 복사한 코스·홀 정보(라운드 데이터와 별개)
 };
 
 const APP_VERSION = '1.7.0';
@@ -1516,6 +1527,7 @@ function renderScorecard(){
   $('#sc-done').classList.toggle('done', !!r.completed);
   $('#sc-done').textContent = r.completed ? '✓ 완료' : '○ 완료';
   $('#sc-zoom-row').classList.toggle('hidden', !r.completed);
+  renderPasteButton(r);
 
   bindTopFields(r);
 
@@ -1588,6 +1600,67 @@ let historySearch = '';   // 공백으로 구분한 검색어(소문자). 모든
 let historyYear = '';     // '' = 전체 연도, 'YYYY' = 그 해만
 
 function openHistory(){ showView('history'); renderHistory(); }
+
+/* ----------------------------------------------------------------------------
+   코스·홀 정보 복사/붙여넣기 — 같은 골프장을 자주 가므로, 히스토리의 라운딩에서
+   골프장명·국내/해외(국가)·전/후반 코스명·홀별 Par만 복사해 미완료 라운딩에 붙여넣는다.
+   스코어·퍼팅·Tee·동반자·캐디·날짜·한줄평은 복사하지 않으며 붙여넣을 때도 절대 건드리지 않는다.
+   복사본은 라운드 목록(KEY.rounds)과 별개 키에 저장 — 복사 자체는 어떤 라운드도 바꾸지 않는다.
+   ---------------------------------------------------------------------------- */
+function copyCourseInfo(r){
+  const clip = {
+    fromId: r.id,
+    fromDate: r.date || '',
+    courseName: r.courseName || '',
+    locationType: r.locationType === 'overseas' ? 'overseas' : 'domestic',
+    country: r.country || '',
+    frontName: r.frontName || '',
+    backName: r.backName || '',
+    pars: (Array.isArray(r.pars) ? r.pars : []).slice(0, 18),
+    copiedAt: new Date().toISOString()
+  };
+  while (clip.pars.length < 18) clip.pars.push(null);
+  if (!save(KEY.courseClip, clip)) { toast('복사하지 못했습니다'); return; }
+  toast(`"${clip.courseName || '(이름없음)'}" 코스·홀 정보를 복사했습니다 — 미완료 라운딩에서 붙여넣기`);
+}
+function loadCourseClip(){
+  const c = load(KEY.courseClip, null);
+  return (c && Array.isArray(c.pars) && c.pars.length === 18) ? c : null;
+}
+function clipCourseLabel(c){
+  const sub = [c.frontName, c.backName].filter(Boolean).join('·');
+  return (c.courseName || '(이름없음)') + (sub ? ` (${sub})` : '');
+}
+function renderPasteButton(r){
+  const c = loadCourseClip();
+  const show = !!c && !r.completed;
+  $('#sc-paste-row').classList.toggle('hidden', !show);
+  if (show) $('#btn-paste-course').textContent = '📋 코스·홀정보 붙여넣기: ' + clipCourseLabel(c);
+}
+$('#btn-paste-course').addEventListener('click', () => {
+  const r = getRound(currentRoundId);
+  const c = loadCourseClip();
+  if (!r || !c || r.completed) return;
+  const msg = `"${clipCourseLabel(c)}"의 골프장명·국내/해외·전/후반 코스명·홀별 Par를 이 라운딩에 붙여넣을까요?`
+    + (r.courseName && r.courseName !== c.courseName ? `\n(현재 골프장명 "${r.courseName}"은 바뀝니다)` : '')
+    + '\n\n스코어·퍼팅·Tee·동반자·캐디·날짜·한줄평은 그대로 둡니다.';
+  openConfirm2(msg, '붙여넣기', '취소', {
+    onYes: () => {
+      const cur = getRound(currentRoundId);
+      if (!cur || cur.id !== r.id || cur.completed) return;
+      cur.courseName = c.courseName;
+      cur.locationType = c.locationType;
+      cur.country = c.locationType === 'overseas' ? c.country : '';
+      cur.frontName = c.frontName;
+      cur.backName = c.backName;
+      cur.pars = c.pars.slice();
+      touch(cur);
+      renderScorecard();
+      toast('코스·홀 정보를 붙여넣었습니다');
+    },
+    onNo: () => {}
+  });
+});
 
 function roundYear(r){ return String(r.date || '').slice(0, 4); }
 
@@ -1671,6 +1744,7 @@ function renderHistory(){
     return `<div class="histrow" data-id="${r.id}">
       <div class="d1"><div class="date">${esc(fmtDateTime(r))}<span class="loctag">${esc(locTag(r))}</span></div><div class="course">${esc(r.courseName || '(이름없음)')}</div></div>
       <div class="score" data-open="${r.id}">${scoreTxt}<span class="d">${esc(subTxt)}</span></div>
+      <button type="button" class="copybtn" data-copy="${r.id}" aria-label="코스·홀 정보 복사">📋</button>
       <button type="button" class="delbtn" data-del="${r.id}" aria-label="삭제">🗑</button>
     </div>`;
   }).join('');
@@ -1685,6 +1759,14 @@ function renderHistory(){
       } else {
         lastTap = { id, t: now };
       }
+    });
+  });
+
+  $$('.copybtn', wrap).forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const r = getRound(btn.dataset.copy);
+      if (r) copyCourseInfo(r);
     });
   });
 
