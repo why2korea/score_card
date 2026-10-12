@@ -747,7 +747,7 @@ const KEY = {
   courses:           'why2korea_scorecard.courses'                    // 골프장별 국가·좌표 판별 결과(라운드 데이터와 별개, v1.8.0~)
 };
 
-const APP_VERSION = '1.8.0';
+const APP_VERSION = '1.8.1';
 const SCHEMA_VERSION = 2;
 
 const SCORE_OPTS = [-3,-2,-1,0,1,2,3,4,5];
@@ -2152,7 +2152,7 @@ function yearlyRoundStats(list){
    - 내장 목록이나 판별 규칙이 바뀌면 COURSE_DB_VER 를 올림 → 사용자가 직접 확정한 값을
      제외한 자동 판별 결과만 다시 계산함.
    ============================================================================ */
-const COURSE_DB_VER = 1;
+const COURSE_DB_VER = 2;
 
 // 골프장 이름 정규화: 공백·기호 제거, CC/GC/컨트리클럽 같은 꼬리말 제거 → 같은 골프장 비교용 키
 const COURSE_SUFFIXES = ['클럽하우스', '컨트리클럽', '칸트리구락부', '골프앤리조트', '골프&리조트', '골프리조트', '골프링크스',
@@ -2194,7 +2194,8 @@ Object.keys(COUNTRY_ALIASES).forEach((k) => {
   COUNTRY_ALIASES[k].forEach((a) => { COUNTRY_CANON[a.toLowerCase()] = k; });
 });
 function canonCountry(s){
-  const t = String(s || '').trim();
+  // 히스토리에 "태국/방콕"처럼 국가/도시로 입력된 경우 국가 부분만 사용
+  const t = String(s || '').split('/')[0].trim();
   if (!t) return '';
   return COUNTRY_CANON[t.toLowerCase().replace(/\s+/g, ' ')] || t;
 }
@@ -2287,11 +2288,12 @@ function groupRoundsByCourse(list){
     const name = (r.courseName || '').trim();
     if (!name) return;
     const key = normCourse(name) || name;
-    const g = groups[key] || (groups[key] = { key, names: {}, count: 0, overseasCountries: {}, overseasNoCountry: 0, domestic: 0 });
+    const g = groups[key] || (groups[key] = { key, names: {}, count: 0, overseasCountries: {}, overseasNoCountry: 0, domestic: 0, rawCountry: '' });
     g.names[name] = (g.names[name] || 0) + 1;
     g.count++;
     if (r.locationType === 'overseas') {
       const c = canonCountry(r.country);
+      if (r.country && g.rawCountry.indexOf(r.country) === -1) g.rawCountry += ' ' + r.country;
       if (c) g.overseasCountries[c] = (g.overseasCountries[c] || 0) + 1; else g.overseasNoCountry++;
     } else g.domestic++;
   });
@@ -2307,7 +2309,7 @@ function groupRoundsByCourse(list){
 // 골프장 하나의 국가·좌표 자동 판별. 결과 status: ok | approx(도시 단위 추정) | nocoord | ambiguous | conflict | nocountry
 function resolveCourseAuto(g){
   const rec = { name: g.name, src: 'auto', ver: COURSE_DB_VER, at: new Date().toISOString() };
-  const hint = cityHint(g.name);
+  const hint = cityHint(g.name) || (g.histOverseas ? cityHint(g.rawCountry) : null);
   if (g.histOverseas) {
     rec.overseas = true;
     rec.country = g.histCountry || (hint ? hint.country : '');
@@ -2323,7 +2325,7 @@ function resolveCourseAuto(g){
     } else if (hint && hint.country === rec.country) {
       rec.lat = hint.lat; rec.lng = hint.lng; rec.prec = 'city';
       rec.status = 'approx';
-      rec.note = `좌표는 이름 속 도시명(${hint.city}) 기준 추정`;
+      rec.note = `좌표는 ${cityHint(g.name) ? '이름 속' : '히스토리 국가란의'} 도시명(${hint.city}) 기준 추정`;
     } else {
       rec.status = 'nocoord';
       rec.note = '해외 골프장 좌표는 내장 목록에 없음';
