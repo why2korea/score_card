@@ -751,7 +751,7 @@ const KEY = {
   courses:           'why2korea_scorecard.courses'                    // 골프장별 국가·좌표 판별 결과(라운드 데이터와 별개, v1.8.0~)
 };
 
-const APP_VERSION = '1.8.3';
+const APP_VERSION = '1.8.4';
 const SCHEMA_VERSION = 2;
 
 const SCORE_OPTS = [-3,-2,-1,0,1,2,3,4,5];
@@ -2409,10 +2409,14 @@ function resolveCourseAuto(g){
 function resolveAllCourses(list){
   const groups = groupRoundsByCourse(list);
   let dirty = false;
-  if (COURSES.ver !== COURSE_DB_VER) {
+  // 내장 골프장 목록(geodata.js)이 바뀌어도 다시 계산 — 앱 업데이트로 위치가 추가된 골프장이 예전 "좌표 없음" 결과에 머물지 않게
+  const geo = window.GEO_DATA || {};
+  const dataSig = [(geo.KR_GOLF || '').length, (geo.OV_GOLF || '').length].join('/');
+  if (COURSES.ver !== COURSE_DB_VER || (geo.KR_GOLF && COURSES.dataSig !== dataSig)) {
     // 판별 규칙/내장 목록이 바뀜 → 직접 확정한 값만 남기고 자동 판별분은 다시 계산
     Object.keys(COURSES.items).forEach((k) => { if (COURSES.items[k].src !== 'manual') delete COURSES.items[k]; });
     COURSES.ver = COURSE_DB_VER;
+    if (geo.KR_GOLF) COURSES.dataSig = dataSig;
     dirty = true;
   }
   const out = Object.keys(groups).map((key) => {
