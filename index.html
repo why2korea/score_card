@@ -751,7 +751,7 @@ const KEY = {
   courses:           'why2korea_scorecard.courses'                    // 골프장별 국가·좌표 판별 결과(라운드 데이터와 별개, v1.8.0~)
 };
 
-const APP_VERSION = '1.8.4';
+const APP_VERSION = '1.8.5';
 const SCHEMA_VERSION = 2;
 
 const SCORE_OPTS = [-3,-2,-1,0,1,2,3,4,5];
@@ -2262,7 +2262,7 @@ function lookupOverseasGolf(key){
     raw.split('\n').forEach((line) => {
       const p = line.split(',');
       if (p.length < 4) return;
-      OV_GOLF_INDEX[normCourse(p[0])] = { name: p[0], lat: +p[1], lng: +p[2], country: p[3], osmName: p[4] || p[0] };
+      OV_GOLF_INDEX[normCourse(p[0])] = { name: p[0], lat: +p[1], lng: +p[2], country: p[3], osmName: p.slice(4).join(',') || p[0] };
     });
   }
   return OV_GOLF_INDEX[key] || null;
@@ -2285,7 +2285,8 @@ function krGolfIndex(){
     if (p.length < 3) return;
     const k = normCourse(p[0]);
     if (!k) return;
-    (KR_GOLF_INDEX[k] = KR_GOLF_INDEX[k] || []).push({ name: p[0], lat: +p[1], lng: +p[2] });
+    // 4번째 칸이 있으면 골프장 자체가 아니라 주소 동네 위치로 넣은 "대략 위치"(그 칸은 설명)
+    (KR_GOLF_INDEX[k] = KR_GOLF_INDEX[k] || []).push({ name: p[0], lat: +p[1], lng: +p[2], approx: p.slice(3).join(',') });
   });
   return KR_GOLF_INDEX;
 }
@@ -2303,7 +2304,7 @@ function lookupKrGolf(key){
   if (exact.length) {
     const near = exact.every((c) => kmBetween(c, exact[0]) <= 10);
     if (near) {
-      return { hit: { lat: exact.reduce((s, c) => s + c.lat, 0) / exact.length, lng: exact.reduce((s, c) => s + c.lng, 0) / exact.length, osmName: exact[0].name } };
+      return { hit: { lat: exact.reduce((s, c) => s + c.lat, 0) / exact.length, lng: exact.reduce((s, c) => s + c.lng, 0) / exact.length, osmName: exact[0].name, approx: exact[0].approx } };
     }
     return { cands: exact.slice(0, 6) };
   }
@@ -2347,7 +2348,7 @@ function groupRoundsByCourse(list){
   return groups;
 }
 
-// 골프장 하나의 국가·좌표 자동 판별. 결과 status: ok | approx(도시 단위 추정) | nocoord | ambiguous | conflict | nocountry
+// 골프장 하나의 국가·좌표 자동 판별. 결과 status: ok | approx(대략 위치: 도시·동네 단위) | nocoord | ambiguous | conflict | nocountry
 function resolveCourseAuto(g){
   const rec = { name: g.name, src: 'auto', ver: COURSE_DB_VER, at: new Date().toISOString() };
   const hint = cityHint(g.name) || (g.histOverseas ? cityHint(g.rawCountry) : null);
@@ -2385,6 +2386,7 @@ function resolveCourseAuto(g){
   if (found.hit) {
     rec.lat = +found.hit.lat.toFixed(4); rec.lng = +found.hit.lng.toFixed(4); rec.prec = 'exact'; rec.osmName = found.hit.osmName;
     rec.status = 'ok';
+    if (found.hit.approx) { rec.prec = 'city'; rec.status = 'approx'; rec.note = '대략 위치: ' + found.hit.approx; }
     if (hint) { rec.status = 'conflict'; rec.note = `국내 골프장 목록과 일치하지만 이름에 해외 도시명(${hint.city})이 있음`; }
     return rec;
   }
@@ -2463,7 +2465,7 @@ function placeCountStats(list){
 }
 
 const COURSE_STATUS_LABEL = {
-  ok: '확정', approx: '도시 단위 추정', nocoord: '좌표 없음', ambiguous: '후보 여러 곳', conflict: '국내/해외 판별 애매', nocountry: '국가 미입력', manual: '직접 확정'
+  ok: '확정', approx: '대략 위치', nocoord: '좌표 없음', ambiguous: '후보 여러 곳', conflict: '국내/해외 판별 애매', nocountry: '국가 미입력', manual: '직접 확정'
 };
 function courseStatus(info){ return info.src === 'manual' ? 'manual' : info.status; }
 function courseNeedsCheck(info){ return info.src !== 'manual' && info.status !== 'ok'; }
@@ -2513,7 +2515,7 @@ function renderMapCard(courses){
     <div class="mapviews">${btns}</div>
     <div class="mapwrap" id="mapwrap">${hasMap ? '' : '<div class="emptynote" style="padding:20px 0;">지도 데이터를 불러오지 못했습니다(앱을 한 번 온라인에서 열어주세요)</div>'}</div>
     <div class="mapinfo" id="mapinfo">점을 누르면 골프장 이름과 방문 횟수가 나옵니다. 두 손가락으로 벌리면 확대, 확대한 뒤엔 한 손가락으로 이동합니다.</div>
-    <div class="maplegend"><span><i class="dot"></i>위치 확정</span><span><i class="dot hollow"></i>도시 단위 추정</span><span class="credit">지도 Natural Earth · 골프장 위치 © OpenStreetMap</span></div>
+    <div class="maplegend"><span><i class="dot"></i>위치 확정</span><span><i class="dot hollow"></i>대략 위치(도시·동네 단위)</span><span class="credit">지도 Natural Earth · 골프장 위치 © OpenStreetMap</span></div>
   </div>`;
 }
 
@@ -2658,7 +2660,7 @@ function showMapInfo(hits, courses){
   drawMap(courses);
   box.innerHTML = hits.slice(0, 6).map((d) => `<div class="mapinforow">
       <span class="nm">${esc(d.name)}</span>
-      <span class="ct">${d.count}회${d.country && d.country !== '대한민국' ? ' · ' + esc(d.country) : ''}${d.approx ? ' · 도시 단위 추정' : ''}</span>
+      <span class="ct">${d.count}회${d.country && d.country !== '대한민국' ? ' · ' + esc(d.country) : ''}${d.approx ? ' · 대략 위치' : ''}</span>
       <button type="button" class="btn small" data-editcourse="${esc(d.key)}">위치 수정</button>
     </div>`).join('') + (hits.length > 6 ? `<div class="mapinfo-more">외 ${hits.length - 6}곳 — 확대해서 보세요</div>` : '');
   $$('[data-editcourse]', box).forEach((b) => { b.onclick = () => openCourseEdit(b.dataset.editcourse); });

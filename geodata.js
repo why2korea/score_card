@@ -255,6 +255,7 @@ YJC골프클럽,37.2795,127.6015
 베어크리크G.C,37.9111,127.2881
 베어크리크GC 춘천,37.7688,127.7199
 베이스타즈CC,35.5891,129.4347
+벨라스톤,37.4431,127.8479,주소(횡성군 서원면 옥계9길 124)의 옥계리 마을 위치
 보라컨트리클럽,35.4949,129.1331
 보령베이스CC,36.3306,126.6189
 보문골프클럽,35.8597,129.2728
@@ -661,5 +662,7 @@ NIKANTI,13.7963,100.1086,태국,Nikanti Golf Club
 ROYAL LAKESIDE,13.4832,100.9901,태국,Royal Lakeside Golf Course
 Muang Kaew Golf,13.6290,100.6725,태국,Muang Kaew Golf
 NORTH HILL,18.6978,98.9574,태국,North Hill Chiang Mai Golf
-Chiangmai Highlands Golf and Spa Resort,18.8026,99.2612,태국,Chiang Mai Highlands Golf and Spa Resort`
+Chiangmai Highlands Golf and Spa Resort,18.8026,99.2612,태국,Chiang Mai Highlands Golf and Spa Resort
+YUFUKOGEN GOLF CLUB,33.2720,131.3215,일본,湯布高原ゴルフクラブ
+BEPPU NO MORI GOLF CLUB,33.2367,131.4678,일본,別府市 枝郷의 골프장(OSM 이름 없음, 주소 동네 안 유일한 골프장)`
 };
