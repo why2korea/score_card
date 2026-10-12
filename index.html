@@ -747,7 +747,7 @@ const KEY = {
   courses:           'why2korea_scorecard.courses'                    // 골프장별 국가·좌표 판별 결과(라운드 데이터와 별개, v1.8.0~)
 };
 
-const APP_VERSION = '1.8.1';
+const APP_VERSION = '1.8.2';
 const SCHEMA_VERSION = 2;
 
 const SCORE_OPTS = [-3,-2,-1,0,1,2,3,4,5];
@@ -2152,7 +2152,7 @@ function yearlyRoundStats(list){
    - 내장 목록이나 판별 규칙이 바뀌면 COURSE_DB_VER 를 올림 → 사용자가 직접 확정한 값을
      제외한 자동 판별 결과만 다시 계산함.
    ============================================================================ */
-const COURSE_DB_VER = 2;
+const COURSE_DB_VER = 3;
 
 // 골프장 이름 정규화: 공백·기호 제거, CC/GC/컨트리클럽 같은 꼬리말 제거 → 같은 골프장 비교용 키
 const COURSE_SUFFIXES = ['클럽하우스', '컨트리클럽', '칸트리구락부', '골프앤리조트', '골프&리조트', '골프리조트', '골프링크스',
@@ -2177,8 +2177,30 @@ const COURSE_ALIASES = {
   '아난티서울': '아난티클럽 서울',
   '속리산': '클럽디속리산',
   '롯데스카이힐부여': '롯데스카이힐CC',
-  '소노펠리체델피노': '소노펠리체CC 델피노'
+  '소노펠리체델피노': '소노펠리체CC 델피노',
+  // 2026-10-12 실데이터 확인 후 추가(OSM 위치 확인)
+  'sky72': '클럽72',                       // SKY72 → 2024년부터 클럽72로 이름 변경, 같은 곳
+  '플라자용인': '용인플라자CC',
+  '아덴힐': '아덴힐리조트앤골프클럽',      // OSM에 같은 곳이 이름 2개로 올라 있음(약 0.4km)
+  'q골프클럽': '골프클럽Q'                      // "Q골프클럽" ↔ "골프클럽Q"(안성) — 좌표만 연결, 횟수는 따로
 };
+
+// 사용자가 "같은 골프장으로 통일"하라고 지정한 이름: 라운드 기록의 이름은 그대로 두고,
+// 통계·지도에서만 하나로 합쳐 셈. (정규화이름 → 합칠 대상 정규화이름)
+const COURSE_MERGE = {
+  '지산포레스트': '지산',                  // 지산포레스트리조트 → 지산CC
+  '소노펠리체': '소노펠리체델피노'         // 소노펠리체CC → 소노펠리체-델피노
+};
+// 합친 골프장/지정한 골프장의 표시 이름
+const COURSE_DISPLAY = {
+  '88': '88컨트리클럽',                    // 88CC, 88컨트리클럽
+  '지산': '지산CC',
+  '소노펠리체델피노': '소노펠리체-델피노'
+};
+function courseKey(name){
+  const k = normCourse(name) || String(name || '').trim();
+  return COURSE_MERGE[k] || k;
+}
 
 // 국가 이름 통일(히스토리에 "Japan", "일본 " 등 여러 형태로 입력돼 있어도 같은 나라로 셈)
 const COUNTRY_ALIASES = {
@@ -2227,6 +2249,21 @@ const OVERSEAS_CITIES = [
   ['비엔티안', '라오스', 17.97, 102.63], ['울란바토르', '몽골', 47.89, 106.91], ['하와이', '미국', 21.31, -157.86],
   ['골드코스트', '호주', -28.02, 153.40]
 ];
+// 내장 해외 골프장 목록(OSM에서 위치를 하나씩 확인한 곳만) → { 정규화이름: {name, lat, lng, country, osmName} }
+let OV_GOLF_INDEX = null;
+function lookupOverseasGolf(key){
+  if (!OV_GOLF_INDEX) {
+    OV_GOLF_INDEX = {};
+    const raw = (window.GEO_DATA && window.GEO_DATA.OV_GOLF) || '';
+    raw.split('\n').forEach((line) => {
+      const p = line.split(',');
+      if (p.length < 4) return;
+      OV_GOLF_INDEX[normCourse(p[0])] = { name: p[0], lat: +p[1], lng: +p[2], country: p[3], osmName: p[4] || p[0] };
+    });
+  }
+  return OV_GOLF_INDEX[key] || null;
+}
+
 function cityHint(name){
   const s = String(name || '').replace(/\s+/g, '');
   const hit = OVERSEAS_CITIES.find((c) => s.indexOf(c[0]) !== -1);
@@ -2287,7 +2324,7 @@ function groupRoundsByCourse(list){
   list.forEach((r) => {
     const name = (r.courseName || '').trim();
     if (!name) return;
-    const key = normCourse(name) || name;
+    const key = courseKey(name);
     const g = groups[key] || (groups[key] = { key, names: {}, count: 0, overseasCountries: {}, overseasNoCountry: 0, domestic: 0, rawCountry: '' });
     g.names[name] = (g.names[name] || 0) + 1;
     g.count++;
@@ -2299,7 +2336,7 @@ function groupRoundsByCourse(list){
   });
   Object.keys(groups).forEach((k) => {
     const g = groups[k];
-    g.name = Object.keys(g.names).sort((a, b) => g.names[b] - g.names[a])[0];
+    g.name = COURSE_DISPLAY[k] || Object.keys(g.names).sort((a, b) => g.names[b] - g.names[a])[0];
     g.histCountry = Object.keys(g.overseasCountries).sort((a, b) => g.overseasCountries[b] - g.overseasCountries[a])[0] || '';
     g.histOverseas = (Object.keys(g.overseasCountries).length > 0 || g.overseasNoCountry > 0);
   });
@@ -2322,6 +2359,11 @@ function resolveCourseAuto(g){
     } else if (!rec.country) {
       rec.status = 'nocountry';
       rec.note = '해외로 입력됐지만 국가가 비어 있음';
+    } else if (lookupOverseasGolf(g.key)) {
+      const ov = lookupOverseasGolf(g.key);
+      rec.lat = ov.lat; rec.lng = ov.lng; rec.prec = 'exact'; rec.osmName = ov.osmName;
+      rec.status = 'ok';
+      if (ov.country !== rec.country) { rec.status = 'conflict'; rec.note = `내장 목록에는 ${ov.country} 골프장인데 히스토리 국가는 ${rec.country}`; }
     } else if (hint && hint.country === rec.country) {
       rec.lat = hint.lat; rec.lng = hint.lng; rec.prec = 'city';
       rec.status = 'approx';
@@ -2388,10 +2430,10 @@ function resolveAllCourses(list){
 // 라운드 1건이 국내/해외 어디로 집계되는지: 히스토리 입력값 우선, 사용자가 골프장을 해외로 직접 확정한 경우만 반영
 function roundPlace(r){
   if (r.locationType === 'overseas') {
-    const info = COURSES.items[normCourse(r.courseName)] || null;
+    const info = COURSES.items[courseKey(r.courseName)] || null;
     return { overseas: true, country: canonCountry(r.country) || (info && info.country) || '' };
   }
-  const info = COURSES.items[normCourse(r.courseName)];
+  const info = COURSES.items[courseKey(r.courseName)];
   if (info && info.src === 'manual' && info.overseas) return { overseas: true, country: info.country || '' };
   return { overseas: false, country: '대한민국' };
 }
@@ -2422,20 +2464,21 @@ function courseNeedsCheck(info){ return info.src !== 'manual' && info.status !==
 function mercY(lat){ const c = Math.max(-85, Math.min(85, lat)); return Math.log(Math.tan(Math.PI / 4 + c * Math.PI / 360)) * 180 / Math.PI; }
 function mapXY(lat, lng){ return [lng * 10, -mercY(lat) * 10]; }
 const MAP_VIEWS = [
-  { id: 'world', label: '세계',    layer: 'world', b: [-180, -58, 180, 80] },
-  { id: 'eastasia', label: '동아시아', layer: 'asia', b: [112, 20, 148, 46] },
+  // 기본: 한국(경도 127.5)을 가운데 두고 동아시아·동남아까지 / '전체'를 누르면 전 대륙
+  { id: 'asia', label: '아시아',   layer: 'asia', b: [96, -9, 159, 47] },
   { id: 'korea', label: '한국',    layer: 'korea', b: [124.4, 33, 131.2, 38.8] },
   { id: 'capital', label: '수도권', layer: 'capital', b: [126.3, 36.75, 128.1, 38.1] },
-  { id: 'sea', label: '동남아',     layer: 'asia', b: [96, -9, 126, 24] }
+  { id: 'sea', label: '동남아',     layer: 'asia', b: [96, -9, 126, 24] },
+  { id: 'world', label: '전체',    layer: 'world', b: [-180, -58, 180, 80] }
 ];
 // 확대 화면에서 위치 감을 잡기 위한 기준 도시(회색 작은 점 + 이름)
 const MAP_LABELS = {
-  eastasia: [['서울', 37.57, 126.98], ['도쿄', 35.68, 139.69], ['상하이', 31.23, 121.47], ['타이베이', 25.03, 121.56]],
+  asia: [['서울', 37.57, 126.98], ['도쿄', 35.68, 139.69], ['상하이', 31.23, 121.47], ['방콕', 13.75, 100.50], ['마닐라', 14.60, 120.98]],
   korea: [['서울', 37.57, 126.98], ['부산', 35.18, 129.08], ['대전', 36.35, 127.38], ['광주', 35.16, 126.85], ['제주', 33.50, 126.53]],
   capital: [['서울', 37.57, 126.98], ['인천', 37.46, 126.71], ['수원', 37.26, 127.03], ['춘천', 37.88, 127.73], ['천안', 36.82, 127.11]],
   sea: [['방콕', 13.75, 100.50], ['하노이', 21.03, 105.85], ['호치민', 10.78, 106.70], ['마닐라', 14.60, 120.98], ['싱가포르', 1.35, 103.82]]
 };
-let mapViewId = 'world';
+let mapViewId = 'asia';
 let mapSelKey = null;
 function mapViewBox(v){
   const [lng0, lat0, lng1, lat1] = v.b;
@@ -3095,7 +3138,7 @@ function parseCourseSheet(sheet){
 function restoreCourses(list){
   let added = 0;
   (list || []).forEach((c) => {
-    const key = normCourse(c.name);
+    const key = courseKey(c.name);
     if (!key) return;
     const cur = COURSES.items[key];
     if (cur && cur.src === 'manual') return;
