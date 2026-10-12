@@ -310,8 +310,12 @@ tr.rowputt td:not(.stickycol):not(.sumcell):not(.totcell){ background:#f4eefc; }
 }
 .mapviewbtn .n{ font-size:10px; margin-left:2px; opacity:.8; }
 .mapviewbtn.on{ background:var(--green); color:#fff; border-color:var(--green); }
-.mapwrap{ width:100%; border:1px solid var(--line); border-radius:10px; overflow:hidden; background:#f7fbff; }
-.worldmap{ display:block; width:100%; height:auto; max-height:70vh; touch-action:manipulation; }
+.mapwrap{ position:relative; width:100%; border:1px solid var(--line); border-radius:10px; overflow:hidden; background:#f7fbff; }
+.mapzoom{ position:absolute; right:6px; bottom:6px; display:flex; flex-direction:column; gap:4px; }
+.mapzoom button{ width:34px; height:34px; border-radius:8px; border:1px solid var(--line); background:rgba(255,255,255,.92); font-size:18px; font-weight:800; color:#1f5c3a; padding:0; line-height:1; }
+.mapzoom .reset{ display:none; font-size:16px; }
+.mapwrap.zoomed .mapzoom .reset{ display:block; }
+.worldmap{ display:block; width:100%; height:auto; max-height:70vh; touch-action:pan-y; }
 .mapsea{ fill:#f7fbff; }
 .mapland{ fill:none; stroke:#5d7a66; stroke-width:1; vector-effect:non-scaling-stroke; stroke-linejoin:round; }
 .mapcity{ fill:#8a9a90; }
@@ -747,7 +751,7 @@ const KEY = {
   courses:           'why2korea_scorecard.courses'                    // 골프장별 국가·좌표 판별 결과(라운드 데이터와 별개, v1.8.0~)
 };
 
-const APP_VERSION = '1.8.2';
+const APP_VERSION = '1.8.3';
 const SCHEMA_VERSION = 2;
 
 const SCORE_OPTS = [-3,-2,-1,0,1,2,3,4,5];
@@ -2504,41 +2508,132 @@ function renderMapCard(courses){
     <div class="k">라운딩 지도 <span class="mapcount">골프장 ${courses.length}곳 · 지도 표시 ${dots.length}곳${unplaced ? ` · 위치 미확정 ${unplaced}곳` : ''}</span></div>
     <div class="mapviews">${btns}</div>
     <div class="mapwrap" id="mapwrap">${hasMap ? '' : '<div class="emptynote" style="padding:20px 0;">지도 데이터를 불러오지 못했습니다(앱을 한 번 온라인에서 열어주세요)</div>'}</div>
-    <div class="mapinfo" id="mapinfo">점을 누르면 골프장 이름과 방문 횟수가 나옵니다. 점이 몰린 곳은 위 버튼으로 확대해 보세요.</div>
+    <div class="mapinfo" id="mapinfo">점을 누르면 골프장 이름과 방문 횟수가 나옵니다. 두 손가락으로 벌리면 확대, 확대한 뒤엔 한 손가락으로 이동합니다.</div>
     <div class="maplegend"><span><i class="dot"></i>위치 확정</span><span><i class="dot hollow"></i>도시 단위 추정</span><span class="credit">지도 Natural Earth · 골프장 위치 © OpenStreetMap</span></div>
   </div>`;
+}
+
+// 손가락 확대/축소 상태: null이면 버튼 단계 화면 그대로, 아니면 현재 보이는 viewBox
+let mapCur = null;
+const MAP_MAX_ZOOM = 40;
+// 확대하면 더 촘촘한 외곽선으로 자동 전환(그 외곽선이 현재 화면을 전부 덮을 때만)
+const MAP_LAYER_BOUNDS = [['capital', [126.1, 36.6, 128.3, 38.25]], ['korea', [123.5, 32.6, 131.6, 39.2]], ['asia', [86, -14, 168, 52]]];
+const MAP_LAYER_RANK = { capital: 0, korea: 1, asia: 2, world: 3 };
+function mercInv(m){ return (2 * Math.atan(Math.exp(m * Math.PI / 180)) - Math.PI / 2) * 180 / Math.PI; }
+function mapLayerFor(v, r){
+  if (!mapCur) return v.layer;
+  const lng0 = r.x / 10, lng1 = (r.x + r.w) / 10, lat1 = mercInv(-r.y / 10), lat0 = mercInv(-(r.y + r.h) / 10);
+  const hit = MAP_LAYER_BOUNDS.find(([id, b]) => MAP_LAYER_RANK[id] <= MAP_LAYER_RANK[v.layer] && lng0 >= b[0] && lng1 <= b[2] && lat0 >= b[1] && lat1 <= b[3]);
+  return hit ? hit[0] : v.layer;
+}
+// 점·도시 표시는 화면 픽셀 기준으로 일정한 크기(확대해도 점이 커지지 않음), 방문이 많을수록 조금 크게
+function mapOverlaySvg(v, dots, unit){
+  const labels = (MAP_LABELS[v.id] || []).map(([nm, lat, lng]) => {
+    const [x, y] = mapXY(lat, lng);
+    return `<rect x="${(x - 2.5 * unit).toFixed(3)}" y="${(y - 2.5 * unit).toFixed(3)}" width="${(5 * unit).toFixed(3)}" height="${(5 * unit).toFixed(3)}" class="mapcity"/><text x="${(x + 5 * unit).toFixed(3)}" y="${(y + 4 * unit).toFixed(3)}" font-size="${(11 * unit).toFixed(3)}" class="mapcitylabel">${esc(nm)}</text>`;
+  }).join('');
+  const circles = dots.filter((d) => inView(v, d)).sort((a, b) => a.count - b.count).map((d) => {
+    const [x, y] = mapXY(d.lat, d.lng);
+    const r = (3.6 + Math.min(3, Math.sqrt(d.count) * 0.7)) * unit;
+    return `<circle cx="${x.toFixed(3)}" cy="${y.toFixed(3)}" r="${r.toFixed(3)}" class="mapdot${d.approx ? ' hollow' : ''}${d.key === mapSelKey ? ' sel' : ''}" stroke-width="${(1.4 * unit).toFixed(3)}"/>`;
+  }).join('');
+  return labels + circles;
 }
 
 function drawMap(courses){
   const wrap = $('#mapwrap');
   if (!wrap || !(window.GEO_DATA && window.GEO_DATA.MAP)) return;
   const v = MAP_VIEWS.find((x) => x.id === mapViewId) || MAP_VIEWS[0];
-  const vb = mapViewBox(v);
+  const base = mapViewBox(v);
   const dots = mapDots(courses);
-  // 점 크기는 화면 픽셀 기준으로 일정하게(확대 단계와 무관), 방문이 많을수록 조금 크게
   const pxW = wrap.clientWidth || 320;
-  const unit = vb.w / pxW;
-  const dotSvg = dots.filter((d) => inView(v, d)).sort((a, b) => a.count - b.count).map((d) => {
-    const [x, y] = mapXY(d.lat, d.lng);
-    const r = (3.6 + Math.min(3, Math.sqrt(d.count) * 0.7)) * unit;
-    const sel = d.key === mapSelKey;
-    return `<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="${r.toFixed(2)}" class="mapdot${d.approx ? ' hollow' : ''}${sel ? ' sel' : ''}" stroke-width="${(1.4 * unit).toFixed(2)}"/>`;
-  }).join('');
-  wrap.innerHTML = `<svg class="worldmap" viewBox="${vb.x.toFixed(1)} ${vb.y.toFixed(1)} ${vb.w.toFixed(1)} ${vb.h.toFixed(1)}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="라운딩 지도">
-    <rect x="${vb.x}" y="${vb.y}" width="${vb.w}" height="${vb.h}" class="mapsea"/>
-    <path d="${window.GEO_DATA.MAP[v.layer]}" class="mapland"/>
-    ${(MAP_LABELS[v.id] || []).map(([nm, lat, lng]) => {
-      const [x, y] = mapXY(lat, lng);
-      return `<rect x="${(x - 2.5 * unit).toFixed(2)}" y="${(y - 2.5 * unit).toFixed(2)}" width="${(5 * unit).toFixed(2)}" height="${(5 * unit).toFixed(2)}" class="mapcity"/><text x="${(x + 5 * unit).toFixed(2)}" y="${(y + 4 * unit).toFixed(2)}" font-size="${(11 * unit).toFixed(2)}" class="mapcitylabel">${esc(nm)}</text>`;
-    }).join('')}
-    ${dotSvg}
-  </svg>`;
-  const svg = $('svg', wrap);
-  svg.addEventListener('click', (e) => {
+  let layer = '';
+  wrap.innerHTML = `<svg class="worldmap" viewBox="${base.x.toFixed(1)} ${base.y.toFixed(1)} ${base.w.toFixed(1)} ${base.h.toFixed(1)}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="라운딩 지도">
+    <rect x="${base.x}" y="${base.y}" width="${base.w}" height="${base.h}" class="mapsea"/>
+    <path class="mapland"/><g class="mapov"></g>
+  </svg>
+  <div class="mapzoom"><button type="button" data-mapzoom="in" aria-label="확대">＋</button><button type="button" data-mapzoom="out" aria-label="축소">－</button><button type="button" data-mapzoom="reset" aria-label="처음 크기로" class="reset">⟲</button></div>`;
+  const svg = $('svg', wrap), land = $('.mapland', svg), ov = $('.mapov', svg);
+  const apply = () => {
+    const r = mapCur || base;
+    svg.setAttribute('viewBox', `${r.x.toFixed(3)} ${r.y.toFixed(3)} ${r.w.toFixed(3)} ${r.h.toFixed(3)}`);
+    const ly = mapLayerFor(v, r);
+    if (ly !== layer) { layer = ly; land.setAttribute('d', window.GEO_DATA.MAP[ly] || window.GEO_DATA.MAP[v.layer]); }
+    ov.innerHTML = mapOverlaySvg(v, dots, r.w / (svg.getBoundingClientRect().width || pxW));
+    svg.style.touchAction = mapCur ? 'none' : 'pan-y';   // 확대 중엔 한 손가락으로 지도 이동, 아니면 화면 스크롤
+    wrap.classList.toggle('zoomed', !!mapCur);
+  };
+  // 화면 비율은 그대로, 확대는 최대 MAP_MAX_ZOOM배, 이동은 버튼 단계 화면 안에서만
+  const setView = (x, y, w) => {
+    const minW = Math.max(base.w / MAP_MAX_ZOOM, 3);
+    w = Math.min(base.w, Math.max(minW, w));
+    const h = w * base.h / base.w;
+    x = Math.min(base.x + base.w - w, Math.max(base.x, x));
+    y = Math.min(base.y + base.h - h, Math.max(base.y, y));
+    mapCur = (w >= base.w - 1e-6) ? null : { x, y, w, h };
+    apply();
+  };
+  const toSvg = (cx, cy) => {
     const pt = svg.createSVGPoint();
-    pt.x = e.clientX; pt.y = e.clientY;
-    const p = pt.matrixTransform(svg.getScreenCTM().inverse());
-    const u = vb.w / (svg.getBoundingClientRect().width || pxW);
+    pt.x = cx; pt.y = cy;
+    return pt.matrixTransform(svg.getScreenCTM().inverse());
+  };
+  // 화면 좌표 (cx, cy) 아래 지점은 그대로 둔 채 배율 f로 확대/축소
+  const zoomAt = (cx, cy, f) => {
+    const r = mapCur || base, p = toSvg(cx, cy);
+    setView(p.x - (p.x - r.x) / f, p.y - (p.y - r.y) / f, r.w / f);
+  };
+  apply();
+
+  // ---- 손가락: 두 손가락 = 확대/축소, (확대 상태에서) 한 손가락 = 이동 ----
+  let g = null, moved = false;
+  const mid = (t) => ({ x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 });
+  const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY) || 1;
+  const startGesture = (t) => {
+    const r = mapCur || base, rect = svg.getBoundingClientRect();
+    if (t.length >= 2) {
+      const m = mid(t);
+      g = { mode: 'pinch', d0: dist(t), p: toSvg(m.x, m.y), r0: r, rect };
+    } else if (t.length === 1 && mapCur) {
+      g = { mode: 'pan', x0: t[0].clientX, y0: t[0].clientY, r0: r, rect };
+    } else g = null;
+  };
+  svg.addEventListener('touchstart', (e) => { startGesture(e.touches); if (e.touches.length >= 2) e.preventDefault(); }, { passive: false });
+  svg.addEventListener('touchmove', (e) => {
+    if (!g) return;
+    const t = e.touches;
+    if (g.mode === 'pinch' && t.length >= 2) {
+      e.preventDefault();
+      const m = mid(t), w = g.r0.w * g.d0 / dist(t), h = w * base.h / base.w;
+      setView(g.p.x - (m.x - g.rect.left) / g.rect.width * w, g.p.y - (m.y - g.rect.top) / g.rect.height * h, w);
+      moved = true;
+    } else if (g.mode === 'pan' && t.length === 1) {
+      e.preventDefault();
+      if (Math.abs(t[0].clientX - g.x0) + Math.abs(t[0].clientY - g.y0) > 6) moved = true;
+      const dx = (t[0].clientX - g.x0) * g.r0.w / g.rect.width, dy = (t[0].clientY - g.y0) * g.r0.h / g.rect.height;
+      setView(g.r0.x - dx, g.r0.y - dy, g.r0.w);
+    }
+  }, { passive: false });
+  const endGesture = (e) => {
+    startGesture(e.touches);   // 두 손가락 중 하나만 떼면 남은 손가락으로 이어서 이동
+    if (moved && !e.touches.length) setTimeout(() => { moved = false; }, 350);
+  };
+  svg.addEventListener('touchend', endGesture);
+  svg.addEventListener('touchcancel', endGesture);
+  // PC: 마우스 휠
+  svg.addEventListener('wheel', (e) => { e.preventDefault(); zoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.25 : 0.8); }, { passive: false });
+  $$('[data-mapzoom]', wrap).forEach((b) => {
+    b.onclick = () => {
+      const rect = svg.getBoundingClientRect();
+      if (b.dataset.mapzoom === 'reset') { mapCur = null; apply(); }
+      else zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, b.dataset.mapzoom === 'in' ? 2 : 0.5);
+    };
+  });
+
+  svg.addEventListener('click', (e) => {
+    if (moved) return;   // 확대/이동하고 손을 뗀 것은 점 선택으로 보지 않음
+    const p = toSvg(e.clientX, e.clientY);
+    const u = (mapCur || base).w / (svg.getBoundingClientRect().width || pxW);
     const near = dots.filter((d) => inView(v, d)).map((d) => {
       const [x, y] = mapXY(d.lat, d.lng);
       return { d, dist: Math.hypot(x - p.x, y - p.y) / u };
@@ -2551,7 +2646,7 @@ function showMapInfo(hits, courses){
   const box = $('#mapinfo');
   if (!hits.length) {
     mapSelKey = null;
-    box.innerHTML = '점을 누르면 골프장 이름과 방문 횟수가 나옵니다. 점이 몰린 곳은 위 버튼으로 확대해 보세요.';
+    box.innerHTML = '점을 누르면 골프장 이름과 방문 횟수가 나옵니다. 두 손가락으로 벌리면 확대, 확대한 뒤엔 한 손가락으로 이동합니다.';
     drawMap(courses);
     return;
   }
@@ -2659,6 +2754,7 @@ function bindMapCard(courses){
   $$('[data-mapview]').forEach((b) => {
     b.onclick = () => {
       mapViewId = b.dataset.mapview;
+      mapCur = null;
       $$('[data-mapview]').forEach((x) => x.classList.toggle('on', x === b));
       drawMap(courses);
     };
