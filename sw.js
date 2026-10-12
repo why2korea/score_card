@@ -10,11 +10,12 @@
       그러면 옛 캐시를 버리고 새 파일을 내려받습니다.
    ============================================================ */
 
-const CACHE_NAME = 'why2korea-scorecard-v46';
+const CACHE_NAME = 'why2korea-scorecard-v47';
 
 const PRECACHE_FILES = [
   './',
   './index.html',
+  './geodata.js',      // 통계 화면 지도·골프장 위치 내장 데이터(오프라인용)
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png',

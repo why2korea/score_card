@@ -296,6 +296,58 @@ tr.rowputt td:not(.stickycol):not(.sumcell):not(.totcell){ background:#f4eefc; }
 .teestat-icon{ flex:0 0 auto; display:flex; }
 .teestat-name{ flex:1 1 auto; }
 .teestat-cnt{ font-weight:800; color:var(--green-dark); flex:0 0 auto; }
+/* 라운딩 횟수(전체/국내/해외) */
+.placegrid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-top:6px; }
+.placegrid > div{ background:#f5faf6; border:1px solid var(--line); border-radius:10px; padding:8px 4px; text-align:center; }
+.placegrid .pk{ display:block; font-size:12px; color:var(--sub); font-weight:700; }
+.placegrid .pv{ display:block; font-size:20px; font-weight:900; color:var(--green-dark); }
+/* 라운딩 지도 */
+.mapcount{ font-weight:600; font-size:11px; margin-left:auto; }
+.mapviews{ display:flex; gap:4px; margin:8px 0; }
+.mapviewbtn{
+  flex:1; min-height:36px; border-radius:10px; border:1px solid var(--line); background:var(--card);
+  color:var(--sub); font-size:13px; font-weight:700; font-family:inherit; cursor:pointer; padding:0 2px;
+}
+.mapviewbtn .n{ font-size:10px; margin-left:2px; opacity:.8; }
+.mapviewbtn.on{ background:var(--green); color:#fff; border-color:var(--green); }
+.mapwrap{ width:100%; border:1px solid var(--line); border-radius:10px; overflow:hidden; background:#f7fbff; }
+.worldmap{ display:block; width:100%; height:auto; max-height:70vh; touch-action:manipulation; }
+.mapsea{ fill:#f7fbff; }
+.mapland{ fill:none; stroke:#5d7a66; stroke-width:1; vector-effect:non-scaling-stroke; stroke-linejoin:round; }
+.mapcity{ fill:#8a9a90; }
+.mapcitylabel{ fill:#7a8a80; font-weight:700; pointer-events:none; }
+.mapdot{ fill:#e02424; stroke:#fff; fill-opacity:.9; }
+.mapdot.hollow{ fill:#fff; stroke:#e02424; }
+.mapdot.sel{ fill:#ffb300; stroke:#7a1010; fill-opacity:1; }
+.mapinfo{ font-size:13px; color:var(--sub); margin-top:8px; min-height:20px; }
+.mapinforow{ display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--line); color:var(--text); }
+.mapinforow:last-child{ border-bottom:none; }
+.mapinforow .nm{ flex:1 1 auto; font-weight:800; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mapinforow .ct{ flex:0 0 auto; font-weight:700; color:var(--green-dark); font-size:12px; }
+.mapinforow .btn{ flex:0 0 auto; }
+.mapinfo-more{ font-size:12px; padding-top:4px; }
+.maplegend{ display:flex; flex-wrap:wrap; gap:4px 12px; font-size:11px; color:var(--sub); margin-top:6px; align-items:center; }
+.maplegend .dot{ display:inline-block; width:9px; height:9px; border-radius:50%; background:#e02424; margin-right:4px; vertical-align:-1px; }
+.maplegend .dot.hollow{ background:#fff; border:1.5px solid #e02424; box-sizing:border-box; }
+.maplegend .credit{ margin-left:auto; font-size:10px; }
+/* 확인이 필요한 골프장 */
+.coursecheck summary{ cursor:pointer; list-style:none; }
+.coursecheck summary::-webkit-details-marker{ display:none; }
+.coursecheck[open] summary .clickhint{ transform:rotate(180deg); }
+.coursecheckrow{ display:grid; grid-template-columns:1fr auto; gap:2px 8px; padding:8px 2px; border-bottom:1px solid var(--line); align-items:center; }
+.coursecheckrow:last-child{ border-bottom:none; }
+.coursecheckrow .cc1{ display:flex; gap:6px; align-items:baseline; font-size:14px; min-width:0; }
+.coursecheckrow .cc1 .nm{ font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.coursecheckrow .cc1 .cnt{ color:var(--green-dark); font-weight:700; font-size:12px; flex:0 0 auto; }
+.coursecheckrow .cc2{ grid-column:1; font-size:12px; color:var(--sub); }
+.coursecheckrow .btn{ grid-column:2; grid-row:1 / span 2; }
+.badge{ display:inline-block; font-size:10px; font-weight:800; padding:1px 6px; border-radius:999px; margin-right:4px; background:#eef2ef; color:var(--sub); }
+.badge.st-conflict, .badge.st-ambiguous{ background:#fff1d6; color:#8a5a00; }
+.badge.st-nocoord, .badge.st-nocountry{ background:#fde4e1; color:#a1281b; }
+.badge.st-approx{ background:#e6f0fb; color:#28508a; }
+.candbtn{ text-align:left; margin-top:4px; white-space:normal; height:auto; padding:6px 10px; }
+.candbtn .sub{ font-size:11px; color:var(--sub); font-weight:600; }
+.candbtn.on{ border-color:var(--green); background:#e6f4ea; }
 
 /* ============================================================
    [CSS 9] 설정 화면
@@ -678,6 +730,7 @@ tr.rowputt td:not(.stickycol):not(.sumcell):not(.totcell){ background:#f4eefc; }
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="./geodata.js"></script>
 <script>
 'use strict';
 
@@ -690,10 +743,11 @@ const KEY = {
   autobackup:        'why2korea_scorecard.rounds.autobackup',        // 엑셀 복원 직전 안전 백업
   sessionBackupCurr: 'why2korea_scorecard.rounds.sessionbackup.curr', // 이번 세션 시작 시점 자동 백업
   sessionBackupPrev: 'why2korea_scorecard.rounds.sessionbackup.prev', // 그 이전 세션의 자동 백업
-  courseClip:        'why2korea_scorecard.courseclip'                 // 히스토리에서 복사한 코스·홀 정보(라운드 데이터와 별개)
+  courseClip:        'why2korea_scorecard.courseclip',                // 히스토리에서 복사한 코스·홀 정보(라운드 데이터와 별개)
+  courses:           'why2korea_scorecard.courses'                    // 골프장별 국가·좌표 판별 결과(라운드 데이터와 별개, v1.8.0~)
 };
 
-const APP_VERSION = '1.7.0';
+const APP_VERSION = '1.8.0';
 const SCHEMA_VERSION = 2;
 
 const SCORE_OPTS = [-3,-2,-1,0,1,2,3,4,5];
@@ -714,25 +768,42 @@ const TEE_OPTS = [
 const TEE_MAP = {};
 TEE_OPTS.forEach((t) => { TEE_MAP[t.code] = t; });
 
+// OB·벌타구역 아이콘의 줄기 양옆에 넣는 글자(왼쪽, 오른쪽)
+const TEE_LETTERS = { LOB: ['O', 'B'], ROB: ['O', 'B'], LP: ['P', 'A'], RP: ['P', 'A'] };
+
 // 중앙은 곧은 직선 화살표, 좌/우는 휘어지는 화살표(꼬리 모양 자체로 방향이 한눈에 보이도록)
-// — 왼쪽 모양을 기준으로 그리고 오른쪽은 좌우 반전해서 재사용
+// — 왼쪽 모양을 기준으로 그리고 오른쪽은 좌우 반전해서 재사용.
+// OB(흰 머리)·벌타구역(빨강)은 아래쪽 줄기 양옆에 글자(O|B, P|A)를 넣어 한눈에 구분되게 하고,
+// OB 머리 삼각형은 다른 화살표보다 크게 그림. 글자 자리를 위해 이 두 종류만 줄기를 조금 짧게 함.
 function teeArrowSvg(code, size){
   const t = TEE_MAP[code];
   if (!t) return `<svg viewBox="0 0 24 24" width="${size}" height="${size}"><circle cx="12" cy="12" r="4" fill="#c8d6cc"/></svg>`;
   const isCenter = t.angle === 0;
   const flip = t.angle > 0;
-  const shaftD = isCenter ? 'M12 21 L12 6' : 'M12 21 L12 14 C 12 9 10 6.5 3 5';
-  const headX = isCenter ? 12 : 3;
-  const headY = isCenter ? 6 : 5;
-  const headRot = isCenter ? 0 : -65;
+  const letters = TEE_LETTERS[code];
+  const isOB = code === 'LOB' || code === 'ROB';
+  // head: 삼각형 좌표(원점 기준)와 놓을 위치·회전각
+  let shaftD, headX, headY, headRot, headPts;
+  if (isCenter) { shaftD = 'M12 21 L12 6'; headX = 12; headY = 6; headRot = 0; headPts = '0,-6.5 4.5,3.2 -4.5,3.2'; }
+  else if (letters) {
+    // 글자 자리를 위해 줄기를 덜 휘게 하고, 머리는 줄기 끝에 밑변을 붙여 화살촉이 바깥쪽을 향하게 함
+    shaftD = 'M12 22 L12 16 C 12 13 11.6 11.6 10.2 10.2';
+    headX = 10.2; headY = 10.2; headRot = -48;
+    headPts = isOB ? '0,-10.5 5.8,0.6 -5.8,0.6' : '0,-9 4.6,0.4 -4.6,0.4';
+  } else { shaftD = 'M12 21 L12 14 C 12 9 10 6.5 3 5'; headX = 3; headY = 5; headRot = -65; headPts = '0,-6.5 4.5,3.2 -4.5,3.2'; }
   const shaftColor = (t.stroke && t.stroke !== 'none') ? t.stroke : t.fill;
+  const letterColor = isOB ? t.stroke : t.fill;
+  // 글자는 좌우 반전 그룹 밖에 그려서 오른쪽 화살표에서도 거울글자가 되지 않게 함
+  const lettersSvg = letters ? letters.map((ch, i) =>
+    `<text x="${i ? 19.2 : 4.8}" y="22.8" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="10.5" font-weight="900" fill="${letterColor}" stroke="#fff" stroke-width="1.6" paint-order="stroke">${ch}</text>`
+  ).join('') : '';
   return `<svg viewBox="0 0 24 24" width="${size}" height="${size}">
     <g${flip ? ' transform="translate(24,0) scale(-1,1)"' : ''}>
       <path d="${shaftD}" fill="none" stroke="${shaftColor}" stroke-width="2.5" stroke-linecap="round"/>
       <g transform="translate(${headX} ${headY}) rotate(${headRot})">
-        <polygon points="0,-6.5 4.5,3.2 -4.5,3.2" fill="${t.fill}" stroke="${t.stroke}" stroke-width="${t.sw}" stroke-linejoin="round"/>
+        <polygon points="${headPts}" fill="${t.fill}" stroke="${t.stroke}" stroke-width="${t.sw}" stroke-linejoin="round"/>
       </g>
-    </g>
+    </g>${lettersSvg}
   </svg>`;
 }
 
@@ -1519,7 +1590,7 @@ function renderTable(r){
 }
 
 function teeBtnHtml(code, hole){
-  return `<button type="button" class="teebtn" data-hole="${hole}" aria-label="${hole+1}번 홀 티샷 방향">${teeArrowSvg(code, 22)}</button>`;
+  return `<button type="button" class="teebtn" data-hole="${hole}" aria-label="${hole+1}번 홀 티샷 방향">${teeArrowSvg(code, 26)}</button>`;
 }
 
 // 홀 번호 헤더 칸 — 후반(10~18번) 홀은 숫자 아래에 후반 기준 순번(①~⑨)을 작게 덧붙임
@@ -1554,7 +1625,7 @@ function renderTableReadonly(r){
   html += `<td class="sumcell">${pi.cnt ? pi.sum : ''}</td><td class="totcell">${(po.cnt + pi.cnt) ? (po.sum + pi.sum) : ''}</td></tr>`;
 
   html += '<tr><td class="stickycol rowlabel putt">Tee</td>';
-  ALL_RANGE.forEach((h) => { if (h === 9) html += '<td class="sumcell"></td>'; html += `<td>${teeArrowSvg(r.myTee[h], 20)}</td>`; });
+  ALL_RANGE.forEach((h) => { if (h === 9) html += '<td class="sumcell"></td>'; html += `<td>${teeArrowSvg(r.myTee[h], 24)}</td>`; });
   html += '<td class="sumcell"></td><td class="totcell"></td></tr>';
 
   html += '</tbody></table>';
@@ -1642,7 +1713,7 @@ function openTeePicker(hole){
   $('#teepicker-title').textContent = (hole + 1) + '번 홀 티샷 방향';
   $('#teepicker-grid').innerHTML = TEE_OPTS.map((t) => {
     const on = current === t.code ? ' on' : '';
-    return `<button type="button" class="${on.trim()}" data-code="${t.code}" aria-label="${t.label}">${teeArrowSvg(t.code, 24)}</button>`;
+    return `<button type="button" class="${on.trim()}" data-code="${t.code}" aria-label="${t.label}">${teeArrowSvg(t.code, 30)}</button>`;
   }).join('');
   $$('#teepicker-grid button').forEach((btn) => {
     btn.onclick = () => selectTee(btn.dataset.code);
@@ -1949,6 +2020,12 @@ function renderStats(){
   const doubleUp = holeRecords.filter((x) => x.diff >= 2).length;
   const joinCount = list.filter((r) => r.joinType === 'join').length;
 
+  const courses = resolveAllCourses(list);
+  const place = placeCountStats(list);
+  const countryRowsHtml = place.countries.length
+    ? place.countries.map((c) => `<div class="companionrow"><span class="name">${esc(c.country)}</span><span class="cnt">${c.count}회</span></div>`).join('')
+    : '<div class="emptynote" style="padding:10px 0;">해외 라운딩 기록이 없습니다</div>';
+
   const compRows = topCompanions(list);
   const companionRowsHtml = compRows.length
     ? compRows.map((c, i) => `<div class="companionrow"><span class="rank">${i+1}</span><span class="name">${esc(c.name)}</span><span class="cnt">${c.count}회</span></div>`).join('')
@@ -1960,7 +2037,7 @@ function renderStats(){
     : '<div class="emptynote" style="padding:16px 0;">기록이 없습니다</div>';
 
   const teeDirRowsHtml = teeDirStatsAll(list)
-    .map((t) => `<div class="teestat-row"><span class="teestat-icon">${teeArrowSvg(t.code, 20)}</span><span class="teestat-name">${esc(t.label)}</span><span class="teestat-cnt">${t.count}</span></div>`)
+    .map((t) => `<div class="teestat-row"><span class="teestat-icon">${teeArrowSvg(t.code, 24)}</span><span class="teestat-name">${esc(t.label)}</span><span class="teestat-cnt">${t.count}</span></div>`)
     .join('');
 
   const minHtml = min
@@ -1990,8 +2067,19 @@ function renderStats(){
       <div class="statcard compact"><div class="k">보기</div><div class="v">${bogey}</div></div>
       <div class="statcard compact"><div class="k">더블보기 이상</div><div class="v">${doubleUp}</div></div>
       <div class="statcard compact"><div class="k">조인 횟수</div><div class="v">${joinCount}</div></div>
-      <div class="statcard compact"><div class="k">라운딩 횟수</div><div class="v">${list.length}</div></div>
     </div>
+    <div class="statcard wide" style="margin-top:10px;">
+      <div class="k">라운딩 횟수</div>
+      <div class="placegrid">
+        <div><span class="pk">전체</span><span class="pv">${place.total}</span></div>
+        <div><span class="pk">국내</span><span class="pv">${place.domestic}</span></div>
+        <div><span class="pk">해외</span><span class="pv">${place.overseas}</span></div>
+      </div>
+      <div class="k" style="margin-top:8px;">해외 국가별</div>
+      <div class="companionlist">${countryRowsHtml}</div>
+    </div>
+    ${renderMapCard(courses)}
+    ${renderCourseCheckCard(courses)}
     <div class="statcard wide" style="margin-top:10px;">
       <div class="k">연도별 라운딩 횟수</div>
       <div class="yearstat-table">
@@ -2013,6 +2101,7 @@ function renderStats(){
   $$('[data-buddy]', wrap).forEach((el) => {
     el.addEventListener('click', () => openBuddyList(el.dataset.buddy));
   });
+  bindMapCard(courses);
 }
 
 function topCompanions(list){
@@ -2043,10 +2132,494 @@ function yearlyRoundStats(list){
     const year = (r.date || '').slice(0, 4) || '(연도 미상)';
     if (!byYear[year]) byYear[year] = { total: 0, domestic: 0, overseas: 0 };
     byYear[year].total++;
-    if (r.locationType === 'overseas') byYear[year].overseas++;
+    if (roundPlace(r).overseas) byYear[year].overseas++;
     else byYear[year].domestic++;
   });
   return Object.keys(byYear).sort((a, b) => b.localeCompare(a)).map((year) => ({ year, ...byYear[year] }));
+}
+
+/* ============================================================================
+   [7-1] 골프장 정보(국가·좌표) 판별 + 라운딩 지도
+   ----------------------------------------------------------------------------
+   - 라운드 기록(ROUNDS)은 읽기만 하고 절대 바꾸지 않음. 판별 결과는 별도 저장 키
+     KEY.courses 에 "골프장 이름(정규화) → 국가·좌표" 형태로 저장해서 다음부터 재사용함.
+   - 판별 순서
+     1) 사용자가 직접 확정한 값(src: manual)이 있으면 그대로 사용
+     2) 국가: 히스토리(라운드)에 해외+국가가 입력돼 있으면 그것을 사용
+     3) 좌표: 국내 골프장은 내장 목록(geodata.js, OpenStreetMap)에서 "이름이 정확히 같은" 곳만
+        자동 확정. 비슷한 이름만 있으면 후보로만 보여주고 확정하지 않음(확인 필요 목록)
+     4) 해외 골프장은 이름 속 도시명(예: 후쿠오카, 다낭)으로 국가·도시 단위 위치만 추정
+   - 내장 목록이나 판별 규칙이 바뀌면 COURSE_DB_VER 를 올림 → 사용자가 직접 확정한 값을
+     제외한 자동 판별 결과만 다시 계산함.
+   ============================================================================ */
+const COURSE_DB_VER = 1;
+
+// 골프장 이름 정규화: 공백·기호 제거, CC/GC/컨트리클럽 같은 꼬리말 제거 → 같은 골프장 비교용 키
+const COURSE_SUFFIXES = ['클럽하우스', '컨트리클럽', '칸트리구락부', '골프앤리조트', '골프&리조트', '골프리조트', '골프링크스',
+  '골프클럽', '골프장', '리조트', '컨트리', '체력단련장', 'countryclub', 'golfclub', 'golfresort', 'resort', 'golf', 'cc', 'gc'];
+function normCourse(name){
+  let s = String(name || '').toLowerCase().replace(/c\.c\.?|g\.c\.?/g, 'cc').replace(/[\s\-_.·()'’&,]/g, '');
+  s = s.replace(/(cc|gc)(?=[가-힣])/g, '');      // "소노펠리체CC델피노"처럼 가운데 낀 CC
+  let changed = true;
+  while (changed && s.length > 2) {
+    changed = false;
+    for (const suf of COURSE_SUFFIXES) {
+      if (s.length > suf.length + 1 && s.endsWith(suf)) { s = s.slice(0, -suf.length); changed = true; }
+    }
+  }
+  return s;
+}
+
+// 사용자가 쓰는 이름 ↔ 내장 목록(OSM) 이름이 서로 달라서 정확히 일치하지 않는 골프장만 따로 연결.
+// (이 표에 있는 연결은 2026-10-12에 OSM 위치를 하나씩 확인함)
+const COURSE_ALIASES = {
+  '스마트ku': '스마트 KU골프파빌리온',
+  '아난티서울': '아난티클럽 서울',
+  '속리산': '클럽디속리산',
+  '롯데스카이힐부여': '롯데스카이힐CC',
+  '소노펠리체델피노': '소노펠리체CC 델피노'
+};
+
+// 국가 이름 통일(히스토리에 "Japan", "일본 " 등 여러 형태로 입력돼 있어도 같은 나라로 셈)
+const COUNTRY_ALIASES = {
+  '일본': ['japan', 'jp', '日本', '니혼'], '베트남': ['vietnam', 'vn', '월남'], '태국': ['thailand', 'th', '타이'],
+  '필리핀': ['philippines', 'ph'], '중국': ['china', 'cn', '中国'], '대만': ['taiwan', 'tw', '타이완'],
+  '미국': ['usa', 'us', 'america', '미합중국'], '말레이시아': ['malaysia', 'my'], '인도네시아': ['indonesia', 'id'],
+  '캄보디아': ['cambodia'], '라오스': ['laos'], '몽골': ['mongolia'], '호주': ['australia', '오스트레일리아'],
+  '싱가포르': ['singapore'], '괌': ['guam'], '사이판': ['saipan'], '대한민국': ['한국', 'korea', 'kr', '국내', '남한']
+};
+const COUNTRY_CANON = {};
+Object.keys(COUNTRY_ALIASES).forEach((k) => {
+  COUNTRY_CANON[k.toLowerCase()] = k;
+  COUNTRY_ALIASES[k].forEach((a) => { COUNTRY_CANON[a.toLowerCase()] = k; });
+});
+function canonCountry(s){
+  const t = String(s || '').trim();
+  if (!t) return '';
+  return COUNTRY_CANON[t.toLowerCase().replace(/\s+/g, ' ')] || t;
+}
+
+// 해외 골프장 이름 속 도시명 → 국가 + 도시 대표 좌표(도시 단위 "추정" 위치로만 사용)
+const OVERSEAS_CITIES = [
+  ['후쿠오카', '일본', 33.59, 130.40], ['오키나와', '일본', 26.33, 127.80], ['미야자키', '일본', 31.91, 131.42],
+  ['가고시마', '일본', 31.60, 130.56], ['구마모토', '일본', 32.80, 130.71], ['나가사키', '일본', 32.75, 129.88],
+  ['사가', '일본', 33.25, 130.30], ['오이타', '일본', 33.24, 131.61], ['벳푸', '일본', 33.28, 131.49],
+  ['기타큐슈', '일본', 33.88, 130.88], ['홋카이도', '일본', 43.06, 141.35], ['삿포로', '일본', 43.06, 141.35],
+  ['도쿄', '일본', 35.68, 139.69], ['오사카', '일본', 34.69, 135.50], ['나고야', '일본', 35.18, 136.91],
+  ['히로시마', '일본', 34.39, 132.46], ['시모노세키', '일본', 33.96, 130.94], ['이부스키', '일본', 31.24, 130.64],
+  ['다낭', '베트남', 16.05, 108.20], ['하노이', '베트남', 21.03, 105.85], ['호치민', '베트남', 10.78, 106.70],
+  ['나트랑', '베트남', 12.24, 109.19], ['나짱', '베트남', 12.24, 109.19], ['냐짱', '베트남', 12.24, 109.19],
+  ['푸꾸옥', '베트남', 10.22, 103.96], ['하이퐁', '베트남', 20.84, 106.69], ['하롱', '베트남', 20.95, 107.08],
+  ['달랏', '베트남', 11.94, 108.44], ['붕따우', '베트남', 10.35, 107.08],
+  ['방콕', '태국', 13.75, 100.50], ['파타야', '태국', 12.93, 100.88], ['치앙마이', '태국', 18.79, 98.98],
+  ['치앙라이', '태국', 19.91, 99.83], ['푸켓', '태국', 7.88, 98.39], ['후아힌', '태국', 12.57, 99.96],
+  ['칸차나부리', '태국', 14.02, 99.53],
+  ['세부', '필리핀', 10.32, 123.89], ['클락', '필리핀', 15.19, 120.55], ['마닐라', '필리핀', 14.60, 120.98],
+  ['웨이하이', '중국', 37.51, 122.12], ['위해', '중국', 37.51, 122.12], ['칭다오', '중국', 36.07, 120.38],
+  ['청도', '중국', 36.07, 120.38], ['옌타이', '중국', 37.46, 121.45], ['연태', '중국', 37.46, 121.45],
+  ['하이난', '중국', 19.20, 109.70], ['하이커우', '중국', 20.04, 110.32], ['싼야', '중국', 18.25, 109.51],
+  ['상하이', '중국', 31.23, 121.47], ['상해', '중국', 31.23, 121.47], ['베이징', '중국', 39.90, 116.40],
+  ['타이베이', '대만', 25.03, 121.56], ['괌', '괌', 13.44, 144.79], ['사이판', '사이판', 15.18, 145.75],
+  ['코타키나발루', '말레이시아', 5.98, 116.07], ['조호르바루', '말레이시아', 1.49, 103.74],
+  ['쿠알라룸푸르', '말레이시아', 3.14, 101.69], ['발리', '인도네시아', -8.65, 115.22], ['바탐', '인도네시아', 1.08, 104.03],
+  ['빈탄', '인도네시아', 1.08, 104.48], ['시엠립', '캄보디아', 13.36, 103.86], ['프놈펜', '캄보디아', 11.56, 104.92],
+  ['비엔티안', '라오스', 17.97, 102.63], ['울란바토르', '몽골', 47.89, 106.91], ['하와이', '미국', 21.31, -157.86],
+  ['골드코스트', '호주', -28.02, 153.40]
+];
+function cityHint(name){
+  const s = String(name || '').replace(/\s+/g, '');
+  const hit = OVERSEAS_CITIES.find((c) => s.indexOf(c[0]) !== -1);
+  return hit ? { city: hit[0], country: hit[1], lat: hit[2], lng: hit[3] } : null;
+}
+
+// 내장 국내 골프장 목록 → { 정규화이름: [{name, lat, lng}, ...] }
+let KR_GOLF_INDEX = null;
+function krGolfIndex(){
+  if (KR_GOLF_INDEX) return KR_GOLF_INDEX;
+  KR_GOLF_INDEX = {};
+  const raw = (window.GEO_DATA && window.GEO_DATA.KR_GOLF) || '';
+  raw.split('\n').forEach((line) => {
+    const p = line.split(',');
+    if (p.length < 3) return;
+    const k = normCourse(p[0]);
+    if (!k) return;
+    (KR_GOLF_INDEX[k] = KR_GOLF_INDEX[k] || []).push({ name: p[0], lat: +p[1], lng: +p[2] });
+  });
+  return KR_GOLF_INDEX;
+}
+function kmBetween(a, b){
+  const rad = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * rad, dLng = (b.lng - a.lng) * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(h));
+}
+// 같은 이름이 여러 개면: 서로 10km 이내(같은 골프장의 코스별 표기 등)면 평균 위치로 확정, 아니면 후보로만 반환
+function lookupKrGolf(key){
+  const idx = krGolfIndex();
+  const aliasName = COURSE_ALIASES[key];
+  const exact = idx[aliasName ? normCourse(aliasName) : key] || [];
+  if (exact.length) {
+    const near = exact.every((c) => kmBetween(c, exact[0]) <= 10);
+    if (near) {
+      return { hit: { lat: exact.reduce((s, c) => s + c.lat, 0) / exact.length, lng: exact.reduce((s, c) => s + c.lng, 0) / exact.length, osmName: exact[0].name } };
+    }
+    return { cands: exact.slice(0, 6) };
+  }
+  // 정확히 같은 이름이 없으면 부분 일치만 후보로(자동 확정하지 않음)
+  if (key.length < 2) return { cands: [] };
+  const cands = [];
+  Object.keys(idx).forEach((k) => {
+    if ((k.length >= 2 && k.indexOf(key) !== -1) || (k.length >= 3 && key.indexOf(k) !== -1)) cands.push(...idx[k]);
+  });
+  // 이름이 검색어로 시작하는 곳, 이름이 짧은 곳(꼬리말이 덜 붙은 곳)을 먼저
+  cands.sort((a, b) => (normCourse(b.name).indexOf(key) === 0) - (normCourse(a.name).indexOf(key) === 0) || a.name.length - b.name.length);
+  return { cands: cands.slice(0, 8) };
+}
+
+let COURSES = load(KEY.courses, { ver: 0, items: {} });
+if (!COURSES || typeof COURSES !== 'object' || !COURSES.items) COURSES = { ver: 0, items: {} };
+function saveCourses(){ save(KEY.courses, COURSES); }
+
+// 완료된 라운드들을 골프장별로 묶음: 표시이름(가장 많이 쓴 표기), 방문 횟수, 히스토리상 국내/해외·국가
+function groupRoundsByCourse(list){
+  const groups = {};
+  list.forEach((r) => {
+    const name = (r.courseName || '').trim();
+    if (!name) return;
+    const key = normCourse(name) || name;
+    const g = groups[key] || (groups[key] = { key, names: {}, count: 0, overseasCountries: {}, overseasNoCountry: 0, domestic: 0 });
+    g.names[name] = (g.names[name] || 0) + 1;
+    g.count++;
+    if (r.locationType === 'overseas') {
+      const c = canonCountry(r.country);
+      if (c) g.overseasCountries[c] = (g.overseasCountries[c] || 0) + 1; else g.overseasNoCountry++;
+    } else g.domestic++;
+  });
+  Object.keys(groups).forEach((k) => {
+    const g = groups[k];
+    g.name = Object.keys(g.names).sort((a, b) => g.names[b] - g.names[a])[0];
+    g.histCountry = Object.keys(g.overseasCountries).sort((a, b) => g.overseasCountries[b] - g.overseasCountries[a])[0] || '';
+    g.histOverseas = (Object.keys(g.overseasCountries).length > 0 || g.overseasNoCountry > 0);
+  });
+  return groups;
+}
+
+// 골프장 하나의 국가·좌표 자동 판별. 결과 status: ok | approx(도시 단위 추정) | nocoord | ambiguous | conflict | nocountry
+function resolveCourseAuto(g){
+  const rec = { name: g.name, src: 'auto', ver: COURSE_DB_VER, at: new Date().toISOString() };
+  const hint = cityHint(g.name);
+  if (g.histOverseas) {
+    rec.overseas = true;
+    rec.country = g.histCountry || (hint ? hint.country : '');
+    if (Object.keys(g.overseasCountries).length > 1) {
+      rec.status = 'conflict';
+      rec.note = '히스토리에 국가가 서로 다르게 입력됨: ' + Object.keys(g.overseasCountries).join(', ');
+    } else if (g.domestic > 0) {
+      rec.status = 'conflict';
+      rec.note = `같은 골프장이 국내 ${g.domestic}회 / 해외 ${g.count - g.domestic}회로 섞여 입력됨`;
+    } else if (!rec.country) {
+      rec.status = 'nocountry';
+      rec.note = '해외로 입력됐지만 국가가 비어 있음';
+    } else if (hint && hint.country === rec.country) {
+      rec.lat = hint.lat; rec.lng = hint.lng; rec.prec = 'city';
+      rec.status = 'approx';
+      rec.note = `좌표는 이름 속 도시명(${hint.city}) 기준 추정`;
+    } else {
+      rec.status = 'nocoord';
+      rec.note = '해외 골프장 좌표는 내장 목록에 없음';
+    }
+    return rec;
+  }
+  // 히스토리상 국내(기본값)
+  rec.overseas = false;
+  rec.country = '대한민국';
+  const found = lookupKrGolf(g.key);
+  if (found.hit) {
+    rec.lat = +found.hit.lat.toFixed(4); rec.lng = +found.hit.lng.toFixed(4); rec.prec = 'exact'; rec.osmName = found.hit.osmName;
+    rec.status = 'ok';
+    if (hint) { rec.status = 'conflict'; rec.note = `국내 골프장 목록과 일치하지만 이름에 해외 도시명(${hint.city})이 있음`; }
+    return rec;
+  }
+  if (hint) {
+    rec.status = 'conflict';
+    rec.note = `국내로 입력됐지만 이름에 해외 도시명(${hint.city}, ${hint.country})이 있음`;
+    rec.cands = [{ name: `${hint.city} (${hint.country}, 도시 단위)`, lat: hint.lat, lng: hint.lng, overseas: true, country: hint.country }];
+    return rec;
+  }
+  if (found.cands && found.cands.length) {
+    rec.status = 'ambiguous';
+    rec.cands = found.cands.map((c) => ({ name: c.name, lat: c.lat, lng: c.lng }));
+    rec.note = `이름이 비슷한 골프장 ${found.cands.length}곳 — 어느 곳인지 확인 필요`;
+    return rec;
+  }
+  rec.status = 'nocoord';
+  rec.note = '내장 국내 골프장 목록에서 찾지 못함';
+  return rec;
+}
+
+// 모든 골프장 판별(저장된 결과 재사용) → [{ key, name, count, info }]
+function resolveAllCourses(list){
+  const groups = groupRoundsByCourse(list);
+  let dirty = false;
+  if (COURSES.ver !== COURSE_DB_VER) {
+    // 판별 규칙/내장 목록이 바뀜 → 직접 확정한 값만 남기고 자동 판별분은 다시 계산
+    Object.keys(COURSES.items).forEach((k) => { if (COURSES.items[k].src !== 'manual') delete COURSES.items[k]; });
+    COURSES.ver = COURSE_DB_VER;
+    dirty = true;
+  }
+  const out = Object.keys(groups).map((key) => {
+    const g = groups[key];
+    const sig = [g.histOverseas ? 1 : 0, g.histCountry, g.domestic, g.count - g.domestic, Object.keys(g.overseasCountries).length].join('|');
+    let info = COURSES.items[key];
+    if (!info || (info.src !== 'manual' && info.sig !== sig)) {
+      info = resolveCourseAuto(g);
+      info.sig = sig;
+      COURSES.items[key] = info;
+      dirty = true;
+    }
+    return { key, name: g.name, count: g.count, info };
+  });
+  if (dirty) saveCourses();
+  return out;
+}
+
+// 라운드 1건이 국내/해외 어디로 집계되는지: 히스토리 입력값 우선, 사용자가 골프장을 해외로 직접 확정한 경우만 반영
+function roundPlace(r){
+  if (r.locationType === 'overseas') {
+    const info = COURSES.items[normCourse(r.courseName)] || null;
+    return { overseas: true, country: canonCountry(r.country) || (info && info.country) || '' };
+  }
+  const info = COURSES.items[normCourse(r.courseName)];
+  if (info && info.src === 'manual' && info.overseas) return { overseas: true, country: info.country || '' };
+  return { overseas: false, country: '대한민국' };
+}
+
+function placeCountStats(list){
+  let domestic = 0, overseas = 0;
+  const byCountry = {};
+  list.forEach((r) => {
+    const p = roundPlace(r);
+    if (p.overseas) {
+      overseas++;
+      const c = p.country || '국가 미입력';
+      byCountry[c] = (byCountry[c] || 0) + 1;
+    } else domestic++;
+  });
+  const countries = Object.keys(byCountry).map((c) => ({ country: c, count: byCountry[c] }))
+    .sort((a, b) => (a.country === '국가 미입력') - (b.country === '국가 미입력') || b.count - a.count || a.country.localeCompare(b.country));
+  return { total: list.length, domestic, overseas, countries };
+}
+
+const COURSE_STATUS_LABEL = {
+  ok: '확정', approx: '도시 단위 추정', nocoord: '좌표 없음', ambiguous: '후보 여러 곳', conflict: '국내/해외 판별 애매', nocountry: '국가 미입력', manual: '직접 확정'
+};
+function courseStatus(info){ return info.src === 'manual' ? 'manual' : info.status; }
+function courseNeedsCheck(info){ return info.src !== 'manual' && info.status !== 'ok'; }
+
+/* ---------- 지도 ---------- */
+function mercY(lat){ const c = Math.max(-85, Math.min(85, lat)); return Math.log(Math.tan(Math.PI / 4 + c * Math.PI / 360)) * 180 / Math.PI; }
+function mapXY(lat, lng){ return [lng * 10, -mercY(lat) * 10]; }
+const MAP_VIEWS = [
+  { id: 'world', label: '세계',    layer: 'world', b: [-180, -58, 180, 80] },
+  { id: 'eastasia', label: '동아시아', layer: 'asia', b: [112, 20, 148, 46] },
+  { id: 'korea', label: '한국',    layer: 'korea', b: [124.4, 33, 131.2, 38.8] },
+  { id: 'capital', label: '수도권', layer: 'capital', b: [126.3, 36.75, 128.1, 38.1] },
+  { id: 'sea', label: '동남아',     layer: 'asia', b: [96, -9, 126, 24] }
+];
+// 확대 화면에서 위치 감을 잡기 위한 기준 도시(회색 작은 점 + 이름)
+const MAP_LABELS = {
+  eastasia: [['서울', 37.57, 126.98], ['도쿄', 35.68, 139.69], ['상하이', 31.23, 121.47], ['타이베이', 25.03, 121.56]],
+  korea: [['서울', 37.57, 126.98], ['부산', 35.18, 129.08], ['대전', 36.35, 127.38], ['광주', 35.16, 126.85], ['제주', 33.50, 126.53]],
+  capital: [['서울', 37.57, 126.98], ['인천', 37.46, 126.71], ['수원', 37.26, 127.03], ['춘천', 37.88, 127.73], ['천안', 36.82, 127.11]],
+  sea: [['방콕', 13.75, 100.50], ['하노이', 21.03, 105.85], ['호치민', 10.78, 106.70], ['마닐라', 14.60, 120.98], ['싱가포르', 1.35, 103.82]]
+};
+let mapViewId = 'world';
+let mapSelKey = null;
+function mapViewBox(v){
+  const [lng0, lat0, lng1, lat1] = v.b;
+  const x0 = lng0 * 10, y0 = -mercY(lat1) * 10;
+  return { x: x0, y: y0, w: (lng1 - lng0) * 10, h: (mercY(lat1) - mercY(lat0)) * 10 };
+}
+function inView(v, d){ return d.lng >= v.b[0] && d.lng <= v.b[2] && d.lat >= v.b[1] && d.lat <= v.b[3]; }
+
+function mapDots(courses){
+  return courses.filter((c) => c.info.lat != null && c.info.lng != null)
+    .map((c) => ({ key: c.key, name: c.name, count: c.count, lat: c.info.lat, lng: c.info.lng, approx: c.info.prec === 'city', country: c.info.country }));
+}
+
+function renderMapCard(courses){
+  const dots = mapDots(courses);
+  const hasMap = !!(window.GEO_DATA && window.GEO_DATA.MAP);
+  const btns = MAP_VIEWS.map((v) => {
+    const n = dots.filter((d) => inView(v, d)).length;
+    return `<button type="button" class="mapviewbtn${v.id === mapViewId ? ' on' : ''}" data-mapview="${v.id}">${esc(v.label)}<span class="n">${n}</span></button>`;
+  }).join('');
+  const unplaced = courses.length - dots.length;
+  return `<div class="statcard wide" style="margin-top:10px;">
+    <div class="k">라운딩 지도 <span class="mapcount">골프장 ${courses.length}곳 · 지도 표시 ${dots.length}곳${unplaced ? ` · 위치 미확정 ${unplaced}곳` : ''}</span></div>
+    <div class="mapviews">${btns}</div>
+    <div class="mapwrap" id="mapwrap">${hasMap ? '' : '<div class="emptynote" style="padding:20px 0;">지도 데이터를 불러오지 못했습니다(앱을 한 번 온라인에서 열어주세요)</div>'}</div>
+    <div class="mapinfo" id="mapinfo">점을 누르면 골프장 이름과 방문 횟수가 나옵니다. 점이 몰린 곳은 위 버튼으로 확대해 보세요.</div>
+    <div class="maplegend"><span><i class="dot"></i>위치 확정</span><span><i class="dot hollow"></i>도시 단위 추정</span><span class="credit">지도 Natural Earth · 골프장 위치 © OpenStreetMap</span></div>
+  </div>`;
+}
+
+function drawMap(courses){
+  const wrap = $('#mapwrap');
+  if (!wrap || !(window.GEO_DATA && window.GEO_DATA.MAP)) return;
+  const v = MAP_VIEWS.find((x) => x.id === mapViewId) || MAP_VIEWS[0];
+  const vb = mapViewBox(v);
+  const dots = mapDots(courses);
+  // 점 크기는 화면 픽셀 기준으로 일정하게(확대 단계와 무관), 방문이 많을수록 조금 크게
+  const pxW = wrap.clientWidth || 320;
+  const unit = vb.w / pxW;
+  const dotSvg = dots.filter((d) => inView(v, d)).sort((a, b) => a.count - b.count).map((d) => {
+    const [x, y] = mapXY(d.lat, d.lng);
+    const r = (3.6 + Math.min(3, Math.sqrt(d.count) * 0.7)) * unit;
+    const sel = d.key === mapSelKey;
+    return `<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="${r.toFixed(2)}" class="mapdot${d.approx ? ' hollow' : ''}${sel ? ' sel' : ''}" stroke-width="${(1.4 * unit).toFixed(2)}"/>`;
+  }).join('');
+  wrap.innerHTML = `<svg class="worldmap" viewBox="${vb.x.toFixed(1)} ${vb.y.toFixed(1)} ${vb.w.toFixed(1)} ${vb.h.toFixed(1)}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="라운딩 지도">
+    <rect x="${vb.x}" y="${vb.y}" width="${vb.w}" height="${vb.h}" class="mapsea"/>
+    <path d="${window.GEO_DATA.MAP[v.layer]}" class="mapland"/>
+    ${(MAP_LABELS[v.id] || []).map(([nm, lat, lng]) => {
+      const [x, y] = mapXY(lat, lng);
+      return `<rect x="${(x - 2.5 * unit).toFixed(2)}" y="${(y - 2.5 * unit).toFixed(2)}" width="${(5 * unit).toFixed(2)}" height="${(5 * unit).toFixed(2)}" class="mapcity"/><text x="${(x + 5 * unit).toFixed(2)}" y="${(y + 4 * unit).toFixed(2)}" font-size="${(11 * unit).toFixed(2)}" class="mapcitylabel">${esc(nm)}</text>`;
+    }).join('')}
+    ${dotSvg}
+  </svg>`;
+  const svg = $('svg', wrap);
+  svg.addEventListener('click', (e) => {
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX; pt.y = e.clientY;
+    const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+    const u = vb.w / (svg.getBoundingClientRect().width || pxW);
+    const near = dots.filter((d) => inView(v, d)).map((d) => {
+      const [x, y] = mapXY(d.lat, d.lng);
+      return { d, dist: Math.hypot(x - p.x, y - p.y) / u };
+    }).filter((x) => x.dist <= 16).sort((a, b) => a.dist - b.dist);
+    showMapInfo(near.map((x) => x.d), courses);
+  });
+}
+
+function showMapInfo(hits, courses){
+  const box = $('#mapinfo');
+  if (!hits.length) {
+    mapSelKey = null;
+    box.innerHTML = '점을 누르면 골프장 이름과 방문 횟수가 나옵니다. 점이 몰린 곳은 위 버튼으로 확대해 보세요.';
+    drawMap(courses);
+    return;
+  }
+  mapSelKey = hits[0].key;
+  drawMap(courses);
+  box.innerHTML = hits.slice(0, 6).map((d) => `<div class="mapinforow">
+      <span class="nm">${esc(d.name)}</span>
+      <span class="ct">${d.count}회${d.country && d.country !== '대한민국' ? ' · ' + esc(d.country) : ''}${d.approx ? ' · 도시 단위 추정' : ''}</span>
+      <button type="button" class="btn small" data-editcourse="${esc(d.key)}">위치 수정</button>
+    </div>`).join('') + (hits.length > 6 ? `<div class="mapinfo-more">외 ${hits.length - 6}곳 — 확대해서 보세요</div>` : '');
+  $$('[data-editcourse]', box).forEach((b) => { b.onclick = () => openCourseEdit(b.dataset.editcourse); });
+}
+
+function renderCourseCheckCard(courses){
+  const need = courses.filter((c) => courseNeedsCheck(c.info)).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  if (!need.length) return '';
+  const rows = need.map((c) => `<div class="coursecheckrow">
+      <div class="cc1"><span class="nm">${esc(c.name)}</span><span class="cnt">${c.count}회</span></div>
+      <div class="cc2"><span class="badge st-${esc(c.info.status)}">${esc(COURSE_STATUS_LABEL[c.info.status] || '')}</span>${esc(c.info.note || '')}</div>
+      <button type="button" class="btn small" data-editcourse="${esc(c.key)}">확인·수정</button>
+    </div>`).join('');
+  return `<details class="statcard wide coursecheck" style="margin-top:10px;">
+    <summary class="k">확인이 필요한 골프장 ${need.length}곳 <span class="clickhint">▾</span></summary>
+    <div class="settinginfo" style="margin:6px 0 4px;">자동으로 확정하지 않은 골프장입니다. 직접 확정하기 전까지는 히스토리에 입력된 국내/해외 값대로 집계하고, 좌표가 없으면 지도에 표시하지 않습니다.</div>
+    ${rows}
+  </details>`;
+}
+
+// 골프장 국가·좌표 직접 확정/수정
+function parseLatLng(s){
+  const m = String(s || '').match(/(-?\d{1,3}(?:\.\d+)?)\s*[, ]\s*(-?\d{1,3}(?:\.\d+)?)/);
+  if (!m) return null;
+  const lat = +m[1], lng = +m[2];
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return { lat, lng };
+}
+function openCourseEdit(key){
+  const info = COURSES.items[key];
+  if (!info) return;
+  const cands = info.cands || [];
+  const coordTxt = (info.lat != null) ? `${info.lat}, ${info.lng}` : '';
+  const body = `
+    <div class="settinginfo" style="margin-bottom:8px;">현재 상태: <b>${esc(COURSE_STATUS_LABEL[courseStatus(info)] || '')}</b>${info.note ? ' — ' + esc(info.note) : ''}</div>
+    <div class="formrow"><label>국내 / 해외</label>
+      <div class="radiogroup">
+        <label class="radiobtn"><input type="radio" name="ce-loc" value="domestic"${info.overseas ? '' : ' checked'}> 국내</label>
+        <label class="radiobtn"><input type="radio" name="ce-loc" value="overseas"${info.overseas ? ' checked' : ''}> 해외</label>
+      </div>
+    </div>
+    <div class="formrow" id="ce-country-row"${info.overseas ? '' : ' style="display:none"'}><label>국가</label>
+      <input type="text" class="field" id="ce-country" value="${esc(info.overseas ? (info.country || '') : '')}" placeholder="예: 일본"></div>
+    ${cands.length ? `<div class="formrow" style="margin-top:8px;"><label>후보에서 고르기</label>${cands.map((c, i) =>
+      `<button type="button" class="btn small block candbtn" data-cand="${i}">${esc(c.name)} <span class="sub">(${c.lat.toFixed(3)}, ${c.lng.toFixed(3)})</span></button>`).join('')}</div>` : ''}
+    <div class="formrow" style="margin-top:8px;"><label>위도, 경도</label>
+      <input type="text" class="field" id="ce-coord" value="${esc(coordTxt)}" placeholder="예: 37.1913, 127.5887" inputmode="decimal"></div>
+    <div class="settinginfo">구글 지도에서 골프장 위치를 길게 누르면 나오는 "위도, 경도" 숫자를 복사해 그대로 붙여넣으면 됩니다. 비워두면 지도에는 표시하지 않고 국내/해외·국가만 확정합니다.</div>
+    <button type="button" class="btn block primary" id="ce-save" style="margin-top:10px;">이 내용으로 확정</button>
+    ${info.src === 'manual' ? '<button type="button" class="btn block" id="ce-reset" style="margin-top:6px;">직접 확정 취소 (자동 판별로 되돌리기)</button>' : ''}
+    <div class="settinginfo" style="margin-top:8px;">여기서 확정한 값은 골프장 정보에만 저장되고, 라운드 기록 자체는 바뀌지 않습니다.</div>`;
+  const m = openModalSheet(info.name, body);
+  const ov = m.overlay;
+  $$('input[name=ce-loc]', ov).forEach((el) => {
+    el.onchange = () => { $('#ce-country-row', ov).style.display = (el.value === 'overseas' && el.checked) ? '' : 'none'; };
+  });
+  $$('.candbtn', ov).forEach((b) => {
+    b.onclick = () => {
+      const c = cands[+b.dataset.cand];
+      $('#ce-coord', ov).value = `${c.lat}, ${c.lng}`;
+      if (c.overseas) {
+        $('input[name=ce-loc][value=overseas]', ov).checked = true;
+        $('#ce-country-row', ov).style.display = '';
+        $('#ce-country', ov).value = c.country || '';
+      }
+      $$('.candbtn', ov).forEach((x) => x.classList.toggle('on', x === b));
+    };
+  });
+  $('#ce-save', ov).onclick = () => {
+    const overseas = $('input[name=ce-loc][value=overseas]', ov).checked;
+    const country = overseas ? canonCountry($('#ce-country', ov).value) : '대한민국';
+    if (overseas && !country) { toast('국가를 입력해주세요'); return; }
+    const coordRaw = $('#ce-coord', ov).value.trim();
+    const ll = coordRaw ? parseLatLng(coordRaw) : null;
+    if (coordRaw && !ll) { toast('위도, 경도 형식이 올바르지 않습니다 (예: 37.19, 127.58)'); return; }
+    COURSES.items[key] = {
+      name: info.name, src: 'manual', ver: COURSE_DB_VER, at: new Date().toISOString(),
+      overseas, country, lat: ll ? ll.lat : null, lng: ll ? ll.lng : null, prec: ll ? 'exact' : null,
+      status: ll ? 'ok' : 'nocoord', note: '직접 확정'
+    };
+    saveCourses();
+    m.close();
+    toast('골프장 정보를 저장했습니다');
+    renderStats();
+  };
+  const reset = $('#ce-reset', ov);
+  if (reset) reset.onclick = () => {
+    delete COURSES.items[key];
+    saveCourses();
+    m.close();
+    toast('자동 판별로 되돌렸습니다');
+    renderStats();
+  };
+}
+
+function bindMapCard(courses){
+  $$('[data-mapview]').forEach((b) => {
+    b.onclick = () => {
+      mapViewId = b.dataset.mapview;
+      $$('[data-mapview]').forEach((x) => x.classList.toggle('on', x === b));
+      drawMap(courses);
+    };
+  });
+  $$('.coursecheck [data-editcourse]').forEach((b) => { b.onclick = () => openCourseEdit(b.dataset.editcourse); });
+  drawMap(courses);
 }
 
 /* ============================================================================
@@ -2375,6 +2948,8 @@ function parseScoreDiffCell(v){
 
 const INFO_HEADER = ['id','일자','시간','국내해외','국가','조인여부','골프장','동반자','캐디명','캐디평가','한줄평','완료여부','전반명','후반명','생성일시','수정일시','schemaVersion','appVersion'];
 const SCORE_HEADER = ['라운드ID','홀번호','Par','타수','스코어(+/-)','퍼팅','Tee'];
+// 골프장정보 시트: 사용자가 통계 화면에서 직접 확정한 골프장 국가·좌표만 담음(자동 판별분은 언제든 다시 계산 가능하므로 제외)
+const COURSE_HEADER = ['골프장','국내해외','국가','위도','경도','확정일시'];
 
 $('#btn-export').addEventListener('click', () => {
   if (typeof XLSX === 'undefined') { toast('엑셀 기능을 불러오지 못했습니다. 인터넷 연결 후 다시 시도해주세요'); return; }
@@ -2402,6 +2977,13 @@ $('#btn-export').addEventListener('click', () => {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(infoRows), '라운드정보');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(scoreRows), '스코어');
+  const manualCourses = Object.keys(COURSES.items).map((k) => COURSES.items[k]).filter((c) => c.src === 'manual');
+  if (manualCourses.length) {
+    const courseRows = [COURSE_HEADER].concat(manualCourses.map((c) => [
+      c.name || '', c.overseas ? '해외' : '국내', c.overseas ? (c.country || '') : '', c.lat == null ? '' : c.lat, c.lng == null ? '' : c.lng, c.at || ''
+    ]));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(courseRows), '골프장정보');
+  }
   const fname = `scorecard_backup_${excelTimestamp()}.xlsx`;
   XLSX.writeFile(wb, fname);
   SETTINGS.lastExcelExportAt = new Date().toISOString();
@@ -2481,7 +3063,7 @@ $('#restore-file').addEventListener('change', (e) => {
 
       parsedRounds.forEach(normalizeRound);
       if (!parsedRounds.length) throw new Error('empty');
-      openRestoreModeConfirm(parsedRounds);
+      openRestoreModeConfirm(parsedRounds, parseCourseSheet(wb.Sheets['골프장정보']));
     } catch (err) {
       toast('올바른 백업 파일이 아닙니다');
     }
@@ -2489,12 +3071,45 @@ $('#restore-file').addEventListener('change', (e) => {
   reader.readAsArrayBuffer(file);
 });
 
-function openRestoreModeConfirm(parsedRounds){
+// 골프장정보 시트(선택) → 직접 확정 골프장 목록. 시트가 없거나(예전 백업) 형식이 다르면 빈 목록
+function parseCourseSheet(sheet){
+  if (!sheet) return [];
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+  const head = rows[0] || [];
+  const ci = (n) => head.indexOf(n);
+  if (ci('골프장') === -1) return [];
+  return rows.slice(1).filter((row) => row && row[ci('골프장')]).map((row) => {
+    const overseas = row[ci('국내해외')] === '해외';
+    const lat = row[ci('위도')], lng = row[ci('경도')];
+    const hasLL = lat !== '' && lat != null && lng !== '' && lng != null && !isNaN(+lat) && !isNaN(+lng);
+    return {
+      name: String(row[ci('골프장')]), src: 'manual', ver: COURSE_DB_VER, at: row[ci('확정일시')] || new Date().toISOString(),
+      overseas, country: overseas ? canonCountry(row[ci('국가')]) : '대한민국',
+      lat: hasLL ? +lat : null, lng: hasLL ? +lng : null, prec: hasLL ? 'exact' : null, status: hasLL ? 'ok' : 'nocoord', note: '직접 확정'
+    };
+  });
+}
+// 직접 확정 골프장 복원: 이 기기에 이미 직접 확정한 값이 있으면 그대로 둠(병합/덮어쓰기 모두 동일)
+function restoreCourses(list){
+  let added = 0;
+  (list || []).forEach((c) => {
+    const key = normCourse(c.name);
+    if (!key) return;
+    const cur = COURSES.items[key];
+    if (cur && cur.src === 'manual') return;
+    COURSES.items[key] = c;
+    added++;
+  });
+  if (added) saveCourses();
+  return added;
+}
+
+function openRestoreModeConfirm(parsedRounds, parsedCourses){
   // 기본값(강조 버튼)은 병합 — 전체 덮어쓰기는 기존 기록을 전부 잃을 위험이 있어 굳이 원할 때만
   // 고르도록 뒤로 뺌.
   openConfirm3(`백업 파일에서 ${parsedRounds.length}건을 찾았습니다. 복원 방식을 선택하세요`, '병합 (중복 ID 건너뜀)', '전체 덮어쓰기', '취소', {
-    onA: () => doRestore(parsedRounds, 'merge'),
-    onB: () => doRestore(parsedRounds, 'overwrite'),
+    onA: () => { doRestore(parsedRounds, 'merge'); restoreCourses(parsedCourses); },
+    onB: () => { doRestore(parsedRounds, 'overwrite'); restoreCourses(parsedCourses); },
     onC: () => {}
   });
 }
