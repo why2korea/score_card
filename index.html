@@ -136,8 +136,6 @@ body{
 }
 .starbtn.on{ color:var(--accent); }
 
-.commentfield{ width:100%; }
-
 .formrow-inline{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .formrow-inline > label{ font-size:12px; color:var(--sub); font-weight:700; flex:0 0 auto; white-space:nowrap; }
 .formrow-inline input{ width:auto; }
@@ -198,6 +196,9 @@ select.cellsel.par{ color:var(--green-dark); font-weight:700; border:none; backg
 tr.rowpar td:not(.stickycol):not(.sumcell):not(.totcell){ background:#eaf2fb; }
 tr.rowscore td:not(.stickycol):not(.sumcell):not(.totcell){ background:#fff8e6; }
 tr.rowputt td:not(.stickycol):not(.sumcell):not(.totcell){ background:#f4eefc; }
+tr.rowon td:not(.stickycol):not(.sumcell):not(.totcell){ background:#e8f6f1; }
+select.cellsel.onwarn{ border-color:var(--danger); background:#fdecea; color:var(--danger); }
+table.scoretable td.onwarn{ color:var(--danger); font-weight:800; background:#fdecea; }
 .teebtn{
   width:44px; height:44px; border:1px solid var(--line); border-radius:8px;
   background:#fff; display:flex; align-items:center; justify-content:center; padding:0; cursor:pointer;
@@ -437,7 +438,9 @@ tr.rowputt td:not(.stickycol):not(.sumcell):not(.totcell){ background:#f4eefc; }
 .scoretools{ display:flex; justify-content:flex-end; margin:-4px 0 -4px; }
 .btn.delround{ color:var(--danger); }
 .pasterow{ display:flex; margin:0 0 -4px; }
-.pasterow .btn{ width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pasterow{ gap:6px; }
+.pasterow .btn{ flex:1 1 0%; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pasterow .btn.pasteclear{ flex:0 0 auto; color:var(--sub); }
 .zoom-overlay{
   position:fixed; inset:0; background:var(--bg); z-index:95;
 }
@@ -561,10 +564,6 @@ tr.rowputt td:not(.stickycol):not(.sumcell):not(.totcell){ background:#f4eefc; }
           <div class="stars" id="caddie-stars"></div>
         </div>
       </div>
-      <div class="formrow-inline">
-        <label>라운딩 한줄평</label>
-        <input type="text" class="field commentfield grow" id="f-comment" maxlength="200" placeholder="오늘 라운딩 한줄평">
-      </div>
     </div>
 
     <div class="scoretools hidden" id="sc-zoom-row">
@@ -572,6 +571,7 @@ tr.rowputt td:not(.stickycol):not(.sumcell):not(.totcell){ background:#f4eefc; }
     </div>
     <div class="pasterow hidden" id="sc-paste-row">
       <button type="button" class="btn small" id="btn-paste-course"></button>
+      <button type="button" class="btn small pasteclear" id="btn-paste-clear" aria-label="복사해 둔 코스·홀정보 지우기">✕ 지우기</button>
     </div>
     <div class="tablewrap" id="tablewrap"></div>
 
@@ -748,14 +748,17 @@ const KEY = {
   sessionBackupCurr: 'why2korea_scorecard.rounds.sessionbackup.curr', // 이번 세션 시작 시점 자동 백업
   sessionBackupPrev: 'why2korea_scorecard.rounds.sessionbackup.prev', // 그 이전 세션의 자동 백업
   courseClip:        'why2korea_scorecard.courseclip',                // 히스토리에서 복사한 코스·홀 정보(라운드 데이터와 별개)
-  courses:           'why2korea_scorecard.courses'                    // 골프장별 국가·좌표 판별 결과(라운드 데이터와 별개, v1.8.0~)
+  courses:           'why2korea_scorecard.courses',                   // 골프장별 국가·좌표 판별 결과(라운드 데이터와 별개, v1.8.0~)
+  premigrateV3:      'why2korea_scorecard.rounds.premigrate.v3',      // 스키마 v3(#On) 첫 실행 직전 라운드 원본 그대로(문자열) 백업
+  migrations:        'why2korea_scorecard.migrations'                 // 한 번만 실행하는 정리/변환 작업의 완료 표시
 };
 
-const APP_VERSION = '1.8.6';
-const SCHEMA_VERSION = 2;
+const APP_VERSION = '1.9.0';
+const SCHEMA_VERSION = 3;   // v3: 홀별 #On(그린에 올라간 샷 번호) myOn 추가
 
 const SCORE_OPTS = [-3,-2,-1,0,1,2,3,4,5];
 const PUTT_OPTS  = [0,1,2,3,4,5];
+const ON_OPTS    = [1,2,3,4,5,6,7,8,9];
 const PAR_OPTS   = [3,4,5,6];
 const CAT_LABEL  = {'-3':'알바트로스','-2':'이글','-1':'버디','0':'파','1':'보기','2':'더블보기','3':'트리플보기','4':'쿼드러플보기','5':'퀸터플보기'};
 
@@ -824,6 +827,9 @@ function load(key, fallback) {
 function save(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)); return true; }
   catch (e) { toast('저장 공간이 부족합니다. 오래된 기록을 정리해주세요'); return false; }
+}
+function removeKey(key) {
+  try { localStorage.removeItem(key); } catch (e) {}
 }
 function esc(s){
   return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -977,6 +983,7 @@ function newRound(){
     pars: new Array(18).fill(4),       // 기본값 4(가장 흔한 Par, 필요시 3/5로 변경)
     myScores: new Array(18).fill(0),   // 기본값 0(파)
     myPutts: new Array(18).fill(0),    // 기본값 0
+    myOn: new Array(18).fill(null),    // #On: 몇 번째 샷에 그린에 올라갔는지 (미입력 null)
     myTee: new Array(18).fill(null),   // 티샷 방향 (미선택 기본)
     completed: false,
     touched: false,   // 실제로 무언가 입력/변경한 적이 있는지 (미완료 저장 조건 판단용)
@@ -990,6 +997,8 @@ function normalizeRound(r){
   if (!Array.isArray(r.myScores)) r.myScores = (r.players && r.players[0] && r.players[0].scores) || new Array(18).fill(0);
   if (!Array.isArray(r.myPutts)) r.myPutts = (r.players && r.players[0] && r.players[0].putts) || new Array(18).fill(0);
   if (!Array.isArray(r.myTee)) r.myTee = new Array(18).fill(null);
+  // #On(v3~)이 없던 예전 기록은 빈 값으로만 채움 — 다른 값에서 거꾸로 계산해 넣지 않음
+  if (!Array.isArray(r.myOn)) r.myOn = new Array(18).fill(null);
   if (!Array.isArray(r.pars)) r.pars = new Array(18).fill(null);
   if (!Array.isArray(r.companions)) {
     const fromPlayers = Array.isArray(r.players) ? r.players.slice(1, 4).map((p) => p.name || '') : [];
@@ -1445,7 +1454,6 @@ function bindTopFields(r){
   $('#f-time').value = validTime(r.time) ? r.time : '';
   $('#f-course').value = r.courseName || '';
   $('#f-caddie').value = r.caddie || '';
-  $('#f-comment').value = r.comment || '';
   $('#f-country').value = r.country || '';
 
   const wire = (elId, field) => {
@@ -1456,7 +1464,6 @@ function bindTopFields(r){
   wire('#f-time', 'time');
   wire('#f-course', 'courseName');
   wire('#f-caddie', 'caddie');
-  wire('#f-comment', 'comment');
   wire('#f-country', 'country');
 
   $$('input[name=loctype]').forEach((el) => {
@@ -1526,6 +1533,19 @@ function puttSum(putts, range){
   range.forEach((h) => { if (putts[h] != null) { sum += putts[h]; cnt++; } });
   return { sum, cnt };
 }
+// #On 기본 제안값 = 실제 타수(Par+스코어) − 퍼팅. 퍼팅 0(칩인 등)이면 그린 온 샷이 없으므로 제안하지 않음
+function onSuggest(r, h){
+  const par = r.pars[h], d = r.myScores[h], p = r.myPutts[h];
+  if (par == null || d == null || p == null || p < 1) return null;
+  const v = par + d - p;
+  return ON_OPTS.includes(v) ? v : null;
+}
+// #On + 퍼팅이 실제 타수보다 많으면 모순 — 값은 그대로 두고 표시만 함
+function onConflict(r, h){
+  const on = r.myOn[h], par = r.pars[h], d = r.myScores[h], p = r.myPutts[h];
+  if (on == null || par == null || d == null || p == null) return false;
+  return on + p > par + d;
+}
 const OUT_RANGE = [0,1,2,3,4,5,6,7,8];
 const IN_RANGE  = [9,10,11,12,13,14,15,16,17];
 const ALL_RANGE = OUT_RANGE.concat(IN_RANGE);
@@ -1572,6 +1592,14 @@ function renderTable(r){
   IN_RANGE.forEach((h) => { html += `<td>${selectHtml('cellsel', 'score', r.myScores[h], SCORE_OPTS, fmtScoreDiff, { hole: h, type: 'score' })}</td>`; });
   html += `<td class="sumcell">${si.cnt ? si.sum : ''}</td>`;
   html += `<td class="totcell">${(so.cnt + si.cnt) ? (so.sum + si.sum) : ''}</td></tr>`;
+
+  // #On 행 — 몇 번째 샷에 그린에 올라갔는지(합계 없음). 모순이면 칸을 빨갛게 표시
+  const onCell = (h) => `<td>${selectHtml('cellsel', onConflict(r, h) ? 'onwarn' : '', r.myOn[h], ON_OPTS, null, { hole: h, type: 'on' })}</td>`;
+  html += '<tr class="rowon"><td class="stickycol rowlabel putt">#On</td>';
+  OUT_RANGE.forEach((h) => { html += onCell(h); });
+  html += '<td class="sumcell"></td>';
+  IN_RANGE.forEach((h) => { html += onCell(h); });
+  html += '<td class="sumcell"></td><td class="totcell"></td></tr>';
 
   // 나의 퍼팅(putt) 행
   const po = puttSum(r.myPutts, OUT_RANGE), pi = puttSum(r.myPutts, IN_RANGE);
@@ -1622,6 +1650,10 @@ function renderTableReadonly(r){
   html += '<tr><td class="stickycol rowlabel">score</td>';
   ALL_RANGE.forEach((h) => { if (h === 9) html += `<td class="sumcell">${so.cnt ? so.sum : ''}</td>`; html += `<td>${r.myScores[h] != null ? fmtScoreDiff(r.myScores[h]) : '–'}</td>`; });
   html += `<td class="sumcell">${si.cnt ? si.sum : ''}</td><td class="totcell">${(so.cnt + si.cnt) ? (so.sum + si.sum) : ''}</td></tr>`;
+
+  html += '<tr><td class="stickycol rowlabel putt">#On</td>';
+  ALL_RANGE.forEach((h) => { if (h === 9) html += '<td class="sumcell"></td>'; html += `<td${onConflict(r, h) ? ' class="onwarn"' : ''}>${r.myOn[h] != null ? r.myOn[h] : '–'}</td>`; });
+  html += '<td class="sumcell"></td><td class="totcell"></td></tr>';
 
   const po = puttSum(r.myPutts, OUT_RANGE), pi = puttSum(r.myPutts, IN_RANGE);
   html += '<tr><td class="stickycol rowlabel putt">putt</td>';
@@ -1690,9 +1722,17 @@ function renderScorecard(){
     el.onchange = () => {
       const h = +el.dataset.hole;
       const val = el.value === '' ? null : +el.value;
-      if (el.dataset.type === 'par') r.pars[h] = val;
-      else if (el.dataset.type === 'score') r.myScores[h] = val;
-      else if (el.dataset.type === 'putt') r.myPutts[h] = val;
+      const type = el.dataset.type;
+      const wasConflict = onConflict(r, h);
+      const prevSuggest = onSuggest(r, h);
+      if (type === 'par') r.pars[h] = val;
+      else if (type === 'score') r.myScores[h] = val;
+      else if (type === 'putt') r.myPutts[h] = val;
+      else if (type === 'on') r.myOn[h] = val;
+      // Par/스코어/퍼팅이 바뀌면 #On 제안값을 다시 계산 — 비어 있거나 직전 제안값 그대로일 때만
+      // 바꾸고, 사용자가 직접 고친 값(칩인 등)은 건드리지 않음
+      if (type !== 'on' && (r.myOn[h] == null || r.myOn[h] === prevSuggest)) r.myOn[h] = onSuggest(r, h);
+      if (!wasConflict && onConflict(r, h)) toast(`${h + 1}번 홀: #On + 퍼팅이 타수보다 많습니다`);
       touch(r);
       renderScorecard();
     };
@@ -1784,7 +1824,7 @@ $('#hist-copydo').addEventListener('click', () => {
 /* ----------------------------------------------------------------------------
    코스·홀 정보 복사/붙여넣기 — 같은 골프장을 자주 가므로, 히스토리의 라운딩에서
    골프장명·국내/해외(국가)·전/후반 코스명·홀별 Par만 복사해 미완료 라운딩에 붙여넣는다.
-   스코어·퍼팅·Tee·동반자·캐디·날짜·한줄평은 복사하지 않으며 붙여넣을 때도 절대 건드리지 않는다.
+   스코어·#On·퍼팅·Tee·동반자·캐디·날짜·한줄평은 복사하지 않으며 붙여넣을 때도 절대 건드리지 않는다.
    복사본은 라운드 목록(KEY.rounds)과 별개 키에 저장 — 복사 자체는 어떤 라운드도 바꾸지 않는다.
    ---------------------------------------------------------------------------- */
 function copyCourseInfo(r){
@@ -1811,6 +1851,14 @@ function clipCourseLabel(c){
   const sub = [c.frontName, c.backName].filter(Boolean).join('·');
   return (c.courseName || '(이름없음)') + (sub ? ` (${sub})` : '');
 }
+// 복사본(KEY.courseClip)만 지운다 — 라운드 기록·골프장 정보에는 손대지 않음
+function clearCourseClip(){ removeKey(KEY.courseClip); }
+$('#btn-paste-clear').addEventListener('click', () => {
+  clearCourseClip();
+  const r = getRound(currentRoundId);
+  if (r) renderPasteButton(r);
+  toast('복사해 둔 코스·홀정보를 지웠습니다');
+});
 function renderPasteButton(r){
   const c = loadCourseClip();
   const show = !!c && !r.completed;
@@ -1823,7 +1871,7 @@ $('#btn-paste-course').addEventListener('click', () => {
   if (!r || !c || r.completed) return;
   const msg = `"${clipCourseLabel(c)}"의 골프장명·국내/해외·전/후반 코스명·홀별 Par를 이 라운딩에 붙여넣을까요?`
     + (r.courseName && r.courseName !== c.courseName ? `\n(현재 골프장명 "${r.courseName}"은 바뀝니다)` : '')
-    + '\n\n스코어·퍼팅·Tee·동반자·캐디·날짜·한줄평은 그대로 둡니다.';
+    + '\n\n스코어·#On·퍼팅·Tee·동반자·캐디·날짜는 그대로 둡니다.';
   openConfirm2(msg, '붙여넣기', '취소', {
     onYes: () => {
       const cur = getRound(currentRoundId);
@@ -1835,6 +1883,7 @@ $('#btn-paste-course').addEventListener('click', () => {
       cur.backName = c.backName;
       cur.pars = c.pars.slice();
       touch(cur);
+      clearCourseClip();   // 적용한 복사본은 바로 비워서 다른 라운딩 화면에 계속 남지 않게 함
       renderScorecard();
       toast('코스·홀 정보를 붙여넣었습니다');
     },
@@ -3095,7 +3144,7 @@ function parseScoreDiffCell(v){
 }
 
 const INFO_HEADER = ['id','일자','시간','국내해외','국가','조인여부','골프장','동반자','캐디명','캐디평가','한줄평','완료여부','전반명','후반명','생성일시','수정일시','schemaVersion','appVersion'];
-const SCORE_HEADER = ['라운드ID','홀번호','Par','타수','스코어(+/-)','퍼팅','Tee'];
+const SCORE_HEADER = ['라운드ID','홀번호','Par','타수','스코어(+/-)','#On','퍼팅','Tee'];  // #On은 v1.9.0~(복원은 열 이름으로 찾으므로 예전 파일도 그대로 읽힘)
 // 골프장정보 시트: 사용자가 통계 화면에서 직접 확정한 골프장 국가·좌표만 담음(자동 판별분은 언제든 다시 계산 가능하므로 제외)
 const COURSE_HEADER = ['골프장','국내해외','국가','위도','경도','확정일시'];
 
@@ -3115,10 +3164,10 @@ $('#btn-export').addEventListener('click', () => {
   const scoreRows = [SCORE_HEADER];
   ROUNDS.forEach((r) => {
     for (let h = 0; h < 18; h++) {
-      if (r.pars[h] == null && r.myScores[h] == null && r.myPutts[h] == null && r.myTee[h] == null) continue;
+      if (r.pars[h] == null && r.myScores[h] == null && r.myOn[h] == null && r.myPutts[h] == null && r.myTee[h] == null) continue;
       const par = r.pars[h], diff = r.myScores[h];
       const actual = (par != null && diff != null) ? par + diff : '';
-      scoreRows.push([r.id, h + 1, par == null ? '' : par, actual, diff == null ? '' : fmtScoreDiff(diff), r.myPutts[h] == null ? '' : r.myPutts[h], r.myTee[h] || '']);
+      scoreRows.push([r.id, h + 1, par == null ? '' : par, actual, diff == null ? '' : fmtScoreDiff(diff), r.myOn[h] == null ? '' : r.myOn[h], r.myPutts[h] == null ? '' : r.myPutts[h], r.myTee[h] || '']);
     }
   });
 
@@ -3207,6 +3256,8 @@ $('#restore-file').addEventListener('change', (e) => {
         const putt = row[sidx('퍼팅')];
         r.myPutts[h] = (putt === '' || putt == null) ? null : +putt;
         r.myTee[h] = row[sidx('Tee')] || null;
+        const on = sidx('#On') === -1 ? null : row[sidx('#On')];   // 예전 백업엔 열이 없음 → 빈 값
+        r.myOn[h] = (on === '' || on == null || isNaN(+on)) ? null : +on;
       });
 
       parsedRounds.forEach(normalizeRound);
@@ -3278,6 +3329,30 @@ function doRestore(parsedRounds, mode){
   toast(`복원 완료: ${parsedRounds.length}건으로 덮어썼습니다`);
 }
 
+/* ----------------------------------------------------------------------------
+   한 번만 실행하는 정리/변환 — 완료한 작업 이름을 KEY.migrations에 기록해 다시 실행하지 않음
+   ---------------------------------------------------------------------------- */
+function runOneTimeMigrations(){
+  const done = load(KEY.migrations, {}) || {};
+  // v3(#On) 첫 실행: 저장된 라운드 원본 문자열을 손대지 않은 그대로 따로 보관(라운드가 있을 때만).
+  // 변환 자체는 normalizeRound가 myOn 빈 배열만 덧붙이는 방식이라 기존 값은 바뀌지 않음.
+  if (!done.premigrateV3) {
+    let raw = null;
+    try { raw = localStorage.getItem(KEY.rounds); } catch (e) {}
+    // 저장 공간이 모자라 실패해도 앱 시작을 막거나 경고를 띄우지 않음(세션 자동 백업이 따로 있음)
+    if (raw && raw !== '[]') {
+      try { localStorage.setItem(KEY.premigrateV3, JSON.stringify({ savedAt: new Date().toISOString(), fromSchema: 2, raw })); } catch (e) {}
+    }
+    done.premigrateV3 = new Date().toISOString();
+  }
+  // v1.9.0 이전엔 붙여넣기 후에도 코스·홀 복사본이 지워지지 않아 계속 남아 있었음 → 한 번 비움
+  if (!done.clearStaleCourseClip) {
+    clearCourseClip();
+    done.clearStaleCourseClip = new Date().toISOString();
+  }
+  save(KEY.migrations, done);
+}
+
 /* ============================================================================
    [10] 시작
    ============================================================================ */
@@ -3290,6 +3365,7 @@ function initApp(){
   viewStack = ['main'];
   showView('main');
 
+  runOneTimeMigrations();
   checkAutoRecovery();
   rotateSessionBackup();
 
