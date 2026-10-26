@@ -753,7 +753,7 @@ const KEY = {
   migrations:        'why2korea_scorecard.migrations'                 // 한 번만 실행하는 정리/변환 작업의 완료 표시
 };
 
-const APP_VERSION = '1.9.0';
+const APP_VERSION = '1.9.1';
 const SCHEMA_VERSION = 3;   // v3: 홀별 #On(그린에 올라간 샷 번호) myOn 추가
 
 const SCORE_OPTS = [-3,-2,-1,0,1,2,3,4,5];
@@ -1546,6 +1546,14 @@ function onConflict(r, h){
   if (on == null || par == null || d == null || p == null) return false;
   return on + p > par + d;
 }
+// 파온(GIR): #On ≤ Par − 2 (파3 1온, 파4 2온, 파5 3온 이내). #On을 입력한 홀만 대상
+function isGir(r, h){ return r.myOn[h] != null && r.pars[h] != null && r.myOn[h] <= r.pars[h] - 2; }
+function girSum(r, range){
+  let gir = 0, cnt = 0;
+  range.forEach((h) => { if (r.myOn[h] != null && r.pars[h] != null) { cnt++; if (isGir(r, h)) gir++; } });
+  return { gir, cnt };
+}
+function girText(g){ return g.cnt ? `${g.gir}/${g.cnt}홀 (${Math.round(g.gir / g.cnt * 100)}%)` : ''; }
 const OUT_RANGE = [0,1,2,3,4,5,6,7,8];
 const IN_RANGE  = [9,10,11,12,13,14,15,16,17];
 const ALL_RANGE = OUT_RANGE.concat(IN_RANGE);
@@ -1675,8 +1683,12 @@ function renderSummary(r){
   r.myScores.forEach((v, h) => { if (v != null && r.pars[h] != null) counts[v] = (counts[v] || 0) + 1; });
   const parts = SCORE_OPTS.filter((k) => counts[k] > 0).map((k) => `${CAT_LABEL[k]} ${counts[k]}`);
   const body = $('#summary-body');
+  const g = girSum(r, ALL_RANGE);
   if (!parts.length) { body.textContent = '아직 입력된 스코어가 없습니다'; body.classList.add('empty'); }
-  else { body.textContent = parts.join(', '); body.classList.remove('empty'); }
+  else {
+    body.innerHTML = esc(parts.join(', ')) + (g.cnt ? `<br>파온(GIR): ${esc(girText(g))}` : '');
+    body.classList.remove('empty');
+  }
 }
 
 // 홀 범위(전반/후반) 안에서 입력된 티샷 방향을 코드별로 세어 "라벨 N" 형태 텍스트로 만듦
@@ -2063,6 +2075,20 @@ function renderStats(){
   const puttRows = rows.filter((x) => x.putts != null);
   const avgPutts = puttRows.length ? (puttRows.reduce((s, x) => s + x.putts, 0) / puttRows.length).toFixed(1) : '—';
 
+  // 파온율(GIR): #On을 입력한 홀만 모아 전체 + Par 유형별로 계산(#On 없던 예전 기록은 자연히 빠짐)
+  const girBy = { all: { gir: 0, cnt: 0 }, 3: { gir: 0, cnt: 0 }, 4: { gir: 0, cnt: 0 }, 5: { gir: 0, cnt: 0 } };
+  list.forEach((r) => ALL_RANGE.forEach((h) => {
+    if (r.myOn[h] == null || r.pars[h] == null) return;
+    const g = isGir(r, h) ? 1 : 0;
+    girBy.all.cnt++; girBy.all.gir += g;
+    const t = girBy[Math.min(5, r.pars[h])];
+    if (t) { t.cnt++; t.gir += g; }
+  }));
+  const pct = (x) => x.cnt ? Math.round(x.gir / x.cnt * 100) + '%' : '–';
+  const girHtml = girBy.all.cnt
+    ? `<div class="statcard compact wide"><div class="k">파온율 (GIR)</div><div class="v">${pct(girBy.all)}<small>파3 ${pct(girBy[3])} · 파4 ${pct(girBy[4])} · 파5 ${pct(girBy[5])} — #On 입력한 ${girBy.all.cnt}홀 기준</small></div></div>`
+    : `<div class="statcard compact wide"><div class="k">파온율 (GIR)</div><div class="v">–<small>#On을 입력한 홀이 아직 없습니다</small></div></div>`;
+
   const holeRecords = collectHoleRecords(list);
   const albatross = holeRecords.filter((x) => x.diff <= -3).length;
   const eagle = holeRecords.filter((x) => x.diff === -2).length;
@@ -2112,6 +2138,7 @@ function renderStats(){
       ${maxHtml}
       <div class="statcard compact"><div class="k">평균 타수</div><div class="v">${avgStrokes}</div></div>
       <div class="statcard compact"><div class="k">평균 퍼팅 수</div><div class="v">${avgPutts}</div></div>
+      ${girHtml}
       <div class="statcard compact clickable" data-buddy="holeinone"><div class="k">홀인원 <span class="clickhint">🖱️</span></div><div class="v">${holeinone}</div></div>
       <div class="statcard compact clickable" data-buddy="albatross"><div class="k">알바트로스 <span class="clickhint">🖱️</span></div><div class="v">${albatross}</div></div>
       <div class="statcard compact clickable" data-buddy="eagle"><div class="k">이글 <span class="clickhint">🖱️</span></div><div class="v">${eagle}</div></div>
@@ -2849,6 +2876,7 @@ function openReadonlyPopup(id){
       <div><span class="k">골프장</span> ${esc(r.courseName || '(이름없음)')}</div>
       <div><span class="k">동반자</span> ${companions.length ? esc(companions.join(', ')) : '–'}</div>
       <div><span class="k">캐디</span> ${esc(r.caddie || '–')} · ${esc(caddieEvalTxt)}</div>
+      ${girSum(r, ALL_RANGE).cnt ? `<div><span class="k">파온(GIR)</span> ${esc(girText(girSum(r, ALL_RANGE)))}</div>` : ''}
       ${r.comment ? `<div class="ro-comment">💬 ${esc(r.comment)}</div>` : ''}
     </div>
     <div class="tablewrap">${renderTableReadonly(r)}</div>
@@ -2922,14 +2950,21 @@ function openZoomScorecard(id){
     const firstHoleCell = wrap.querySelector('tr:first-child th:nth-child(2)');
     const wrapRectNow = wrap.getBoundingClientRect();
     const holeColOffset = firstHoleCell ? (firstHoleCell.getBoundingClientRect().left - wrapRectNow.left) : 0;
-    const scale = Math.min(availW / naturalW, availH / naturalH);
+    // 세로 가운데 정렬이면 전체화면 진입 때 아래쪽에 뜨는 시스템 안내 문구가 마지막 Tee 줄을
+    // 가려서, 위쪽은 골프장/일시 한 줄만 두고 표를 바로 붙이고 아래쪽에 여백(화면 높이 14%)을 남긴다.
+    // 위쪽 띠에는 골프장/일시와 닫기(×) 버튼이 한 줄로 놓이므로 둘 중 더 아래쪽 끝 밑에서 표를 시작
+    const closeBtn = $('#zoom-close', overlay);
+    const headSpace = Math.max(head.offsetHeight + 6, closeBtn ? closeBtn.offsetTop + closeBtn.offsetHeight + 4 : 0);
+    const bottomReserve = Math.max(40, Math.round(availH * 0.14));
+    const fitH = Math.max(1, availH - headSpace - bottomReserve);
+    const scale = Math.min(availW / naturalW, fitH / naturalH);
     const left = Math.max(0, (availW - naturalW * scale) / 2);
-    const top = Math.max(0, (availH - naturalH * scale) / 2);
+    const top = headSpace;
     wrap.style.transform = `scale(${scale})`;
     wrap.style.left = left + 'px';
     wrap.style.top = top + 'px';
     head.style.left = (left + holeColOffset * scale) + 'px';
-    head.style.top = Math.max(2, top - head.offsetHeight - 2) + 'px';
+    head.style.top = Math.max(2, Math.round((headSpace - head.offsetHeight) / 2)) + 'px';
   }
   const close = () => {
     window.removeEventListener('resize', fit);
